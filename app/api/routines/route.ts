@@ -1,4 +1,4 @@
-import { authenticatedClient, jsonResponse } from "@/lib/server";
+import { authenticatedClient, errorResponse, jsonResponse } from "@/lib/server";
 import { isoWeekday } from "@/lib/routines.mjs";
 export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
@@ -20,10 +20,7 @@ export async function GET(req: Request) {
       throw Error("루틴 SQL 마이그레이션을 먼저 적용해 주세요.");
     return jsonResponse({ routines: results[0].data, logs: results[1].data });
   } catch (e) {
-    return jsonResponse(
-      { error: e instanceof Error ? e.message : "조회 실패" },
-      400,
-    );
+    return errorResponse(e);
   }
 }
 export async function POST(req: Request) {
@@ -60,9 +57,6 @@ export async function POST(req: Request) {
     if (result.error) throw Error(result.error.message);
     return jsonResponse({ ok: true });
   } catch (e) {
-    return jsonResponse(
-      { error: e instanceof Error ? e.message : "저장 실패" },
-      400,
-    );
+    return errorResponse(e);
   }
 }

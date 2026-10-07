@@ -8,7 +8,7 @@ import { Auth } from "./Auth";
 import { EntryForm } from "./EntryForm";
 import { ScheduleForm } from "./ScheduleForm";
 import { BreatheModal } from "./BreatheModal";
-import { CoolingOffBox } from "./CoolingOffBox";
+import { CoolingOffBox, coolingFromRow, type CoolingItem } from "./CoolingOffBox";
 import { browserClient } from "@/lib/supabase";
 import {
   koreaDate,
@@ -18,7 +18,16 @@ import {
 } from "@/lib/finance.mjs";
 import type { Data, Fragment, Memo } from "@/lib/types";
 
-const blank: Data = { memos: [], entries: [], schedules: [], settlements: [] };
+const blank: Data = {
+  memos: [],
+  entries: [],
+  schedules: [],
+  settlements: [],
+  totals: null,
+  monthTotals: null,
+  entriesTruncated: false,
+  memosTruncated: false,
+};
 const labels: Record<string, string> = {
   money: "돈",
   thought: "생각",
@@ -48,7 +57,10 @@ export default function Dashboard() {
     [busy, setBusy] = useState(false),
     [sync, setSync] = useState("연결 준비"),
     [text, setText] = useState(""),
-    [breathing, setBreathing] = useState(false);
+    [breathing, setBreathing] = useState(false),
+    [recovery, setRecovery] = useState(false),
+    [cooling, setCooling] = useState<CoolingItem[]>([]),
+    [draftReady, setDraftReady] = useState(false);
 
   const [month, setMonth] = useState(() => koreaDate().slice(0, 7)),
     [range, setRange] = useState(() => monthRange(koreaDate().slice(0, 7))),
@@ -58,6 +70,7 @@ export default function Dashboard() {
     } | null>(null);
 
   const memoRequest = useRef({ text: "", id: "" });
+  const coolingMoved = useRef(false);
   const currentUser = useRef<string | null>(null);
   const reloadCount = useRef(0);
   const routineController = useRoutines(session?.user.id || null);
@@ -67,12 +80,15 @@ export default function Dashboard() {
 
   // Auto-save web draft to localStorage
   useEffect(() => {
-    if (text) {
-      localStorage.setItem("pp_draft_text", text);
-    } else {
-      localStorage.removeItem("pp_draft_text");
-    }
-  }, [text]);
+    const saved = localStorage.getItem("pp_draft_text");
+    if (saved) setText(saved);
+    setDraftReady(true);
+  }, []);
+  useEffect(() => {
+    if (!draftReady) return;
+    if (text) localStorage.setItem("pp_draft_text", text);
+    else localStorage.removeItem("pp_draft_text");
+  }, [text, draftReady]);
 
   async function reload() {
     const sequence = ++reloadCount.current;
@@ -82,14 +98,19 @@ export default function Dashboard() {
     } = await db.auth.getSession();
     if (!s) return;
     const user = s.user.id;
-    const r = await fetch(`/api/data?month=${month}&limit=50`, {
-      headers: { Authorization: `Bearer ${s.access_token}` },
-      cache: "no-store",
-    });
+    const r = await fetch(
+      `/api/data?from=${encodeURIComponent(range.start)}&to=${encodeURIComponent(range.end)}`,
+      {
+        headers: { Authorization: `Bearer ${s.access_token}` },
+        cache: "no-store",
+      },
+    );
     const d = await r.json();
     if (!r.ok) throw Error(d.error);
-    if (currentUser.current === user && sequence === reloadCount.current)
-      setData(d);
+    if (currentUser.current === user && sequence === reloadCount.current) {
+      setData({ ...blank, ...d });
+      setCooling((d.cooling || []).map(coolingFromRow));
+    }
   }
 
   useEffect(() => {
@@ -108,10 +129,15 @@ export default function Dashboard() {
     });
     const {
       data: { subscription },
-    } = db.auth.onAuthStateChange((_, s) => {
+    } = db.auth.onAuthStateChange((event, s) => {
       setSession(s);
       currentUser.current = s?.user.id || null;
-      if (!s) setData(blank);
+      if (event === "PASSWORD_RECOVERY") setRecovery(true);
+      if (!s) {
+        setData(blank);
+        setCooling([]);
+        setRecovery(false);
+      }
     });
     return () => {
       alive = false;
@@ -130,11 +156,22 @@ export default function Dashboard() {
         })
         .catch((e) => setSync(e.message));
     const db = browserClient();
-    const channel = db.channel("pp-realtime");
-    for (const table of ["memos", "entries", "schedules", "settlements"])
-      channel.on(
+    let channel = db.channel(`account-${session.user.id}`);
+    for (const table of [
+      "memos",
+      "entries",
+      "schedules",
+      "settlements",
+      "cooling_off_items",
+    ])
+      channel = channel.on(
         "postgres_changes",
-        { event: "*", schema: "public", table },
+        {
+          event: "*",
+          schema: "public",
+          table,
+          filter: `user_id=eq.${session.user.id}`,
+        },
         () => {
           clearTimeout(timer);
           timer = setTimeout(update, 200);
@@ -161,12 +198,12 @@ export default function Dashboard() {
     document.addEventListener("visibilitychange", visible);
     return () => {
       clearTimeout(timer);
-      channel.unsubscribe();
+      db.removeChannel(channel);
       window.removeEventListener("online", online);
       window.removeEventListener("offline", offline);
       document.removeEventListener("visibilitychange", visible);
     };
-  }, [session, month]);
+  }, [session, range.start, range.end]);
 
   async function send(body: unknown) {
     const db = browserClient();
@@ -186,6 +223,33 @@ export default function Dashboard() {
     if (!r.ok) throw Error(d.error);
     return d;
   }
+  useEffect(() => {
+    if (!session || coolingMoved.current || sync !== "동기화됨") return;
+    const raw = localStorage.getItem("pp_cooling_off_items");
+    coolingMoved.current = true;
+    if (!raw) return;
+    let local: CoolingItem[] = [];
+    try {
+      local = JSON.parse(raw);
+    } catch {
+      return;
+    }
+    const ids = new Set(cooling.map((item) => item.id));
+    const missing = local.filter((item) => item?.id && !ids.has(item.id));
+    if (!missing.length) {
+      localStorage.removeItem("pp_cooling_off_items");
+      return;
+    }
+    void (async () => {
+      try {
+        for (const item of missing) await send({ action: "cooling", item });
+        localStorage.removeItem("pp_cooling_off_items");
+        await reload();
+      } catch {
+        coolingMoved.current = false;
+      }
+    })();
+  }, [session, sync, cooling]);
 
   async function action(fn: () => Promise<string | void>) {
     setBusy(true);
@@ -232,7 +296,7 @@ export default function Dashboard() {
     (e) =>
       e.occurred_on >= range.start && e.occurred_on <= range.end && !e.voided_at,
   );
-  const totals = sumLedger(rows);
+  const totals = data.totals ?? sumLedger(rows);
   const due = data.schedules
     .flatMap((s) => scheduleOccurrences(s, today, data.settlements))
     .sort((a, b) => a.due_date.localeCompare(b.due_date));
@@ -406,6 +470,37 @@ export default function Dashboard() {
           </div>
         </header>
 
+        {recovery && (
+          <form
+            className="card"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const password = String(new FormData(e.currentTarget).get("password"));
+              void action(async () => {
+                const { error: resetError } =
+                  await browserClient().auth.updateUser({ password });
+                if (resetError) throw resetError;
+                setRecovery(false);
+                return "비밀번호를 바꿨어요.";
+              });
+            }}
+          >
+            <h2>새 비밀번호</h2>
+            <p>메일 링크로 들어왔어요. 앞으로 쓸 비밀번호를 입력해 주세요.</p>
+            <label>
+              새 비밀번호
+              <input
+                name="password"
+                type="password"
+                minLength={8}
+                autoComplete="new-password"
+                required
+              />
+            </label>
+            <button disabled={busy}>비밀번호 저장</button>
+          </form>
+        )}
+
         {error && (
           <div role="alert" className="alert">
             {error}
@@ -446,15 +541,7 @@ export default function Dashboard() {
             <div className="grid">
               <div className="card butter">
                 <p className="eyebrow">이번 달 소비</p>
-                <h2>
-                  {won(
-                    sumLedger(
-                      data.entries.filter(
-                        (e) => e.occurred_on.slice(0, 7) === today.slice(0, 7),
-                      ),
-                    ).expense,
-                  )}
-                </h2>
+                <h2>{won(data.monthTotals?.expense ?? 0)}</h2>
                 <p>대금·상환과 예정 금액은 따로 표시해요.</p>
                 <button
                   className="text-button"
@@ -472,6 +559,9 @@ export default function Dashboard() {
             </button>
 
             <h2 className="section-heading">내려놓은 생각들</h2>
+            {data.memosTruncated && (
+              <p className="hint">오래된 메모 일부는 아직 이 화면에 없어요.</p>
+            )}
             {memoCards()}
           </>
         )}
@@ -479,17 +569,25 @@ export default function Dashboard() {
         {/* 2. COOLING OFF BOX TAB (NEW) */}
         {page === "cooling" && (
           <CoolingOffBox
+            items={cooling}
+            onSave={async (item) =>
+              !!(await action(async () => {
+                await send({ action: "cooling", item });
+              }))
+            }
             onConvertToExpense={async (item) => {
-              await send({
-                action: "entry",
-                requestId: crypto.randomUUID(),
-                title: item.title,
-                kind: "expense",
-                amount: item.amount,
-                date: koreaDate(),
-                method: "credit",
+              const ok = await action(async () => {
+                await send({
+                  action: "entry",
+                  requestId: crypto.randomUUID(),
+                  title: item.title,
+                  kind: "expense",
+                  amount: item.amount,
+                  date: koreaDate(),
+                  method: "credit",
+                });
               });
-              await reload();
+              if (!ok) throw Error("가계부 기록을 저장하지 못했습니다.");
             }}
           />
         )}
@@ -559,8 +657,13 @@ export default function Dashboard() {
               <p className="hint">
                 소비 차액 {won(totals.net)} = 수입 + 환불 − 소비. 은행 잔액이
                 아니에요. 카드 구매는 소비, 카드 대금 납부는 대금·상환으로
-                기록합니다.
+                기록합니다. 합계는 선택한 기간의 전체 기록으로 계산해요.
               </p>
+              {data.entriesTruncated && (
+                <p className="hint">
+                  내역이 너무 많아 목록 일부만 보여요. 합계에는 모두 포함됩니다.
+                </p>
+              )}
             </section>
 
             <EntryForm

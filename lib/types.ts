@@ -34,9 +34,21 @@ export type Schedule = {
   active: boolean;
 };
 export type Settlement = { schedule_id: string; due_date: string };
+export type Totals = {
+  income: number;
+  expense: number;
+  refund: number;
+  repayment: number;
+  net: number;
+  count: number;
+};
 export type Data = {
   memos: Memo[];
   entries: Entry[];
   schedules: Schedule[];
   settlements: Settlement[];
+  totals: Totals | null;
+  monthTotals: Totals | null;
+  entriesTruncated: boolean;
+  memosTruncated: boolean;
 };
