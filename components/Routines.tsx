@@ -352,6 +352,7 @@ export function RoutineManager({
   return (
     <>
       <RoutineToday controller={c} />
+      <details className="content-fold"><summary>루틴 등록·수정과 알림 설정</summary>
       <section className="card">
         <h2>알림 받기</h2>
         <p className="hint">
@@ -502,8 +503,8 @@ export function RoutineManager({
           </div>
         ))}
       </section>
-      <section className="card">
-        <h2>날짜별 루틴 기록</h2>
+      </details>
+      <details className="card content-fold"><summary>날짜별 루틴 기록 보기</summary>
         <label>
           날짜
           <input
@@ -542,7 +543,7 @@ export function RoutineManager({
           !historyLogs.some((l) => l.due_on === historyDate) && (
             <p className="hint">이 날짜에 남긴 기록이 없어요.</p>
           )}
-      </section>
+      </details>
     </>
   );
 }

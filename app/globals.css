@@ -646,3 +646,15 @@ fieldset {
     font-size: 11px;
   }
 }
+
+.content-fold { margin: 20px 0; }
+.content-fold > summary { cursor: pointer; font-weight: 600; padding: 12px 0; }
+.content-fold > summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; border-radius: 4px; }
+.content-fold[open] > summary { margin-bottom: 12px; }
+.first-use blockquote { margin: 16px 0; padding-left: 16px; border-left: 3px solid var(--line); }
+.example-results { padding-left: 22px; line-height: 1.8; }
+.example-results li { margin: 10px 0; }
+.next-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.next-actions form { display: flex; gap: 8px; flex-wrap: wrap; max-width: 100%; }
+.next-actions input, .next-actions select { width: auto; min-width: 0; max-width: 100%; }
+.auth .content-fold { text-align: left; }
