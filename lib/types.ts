@@ -6,6 +6,8 @@ export type Fragment = {
   kind: string | null;
   date: string;
   status: string;
+  intent?: "buy" | "eat" | null;
+  item?: string | null;
 };
 export type Memo = {
   id: string;

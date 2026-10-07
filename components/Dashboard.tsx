@@ -30,6 +30,7 @@ const blank: Data = {
 };
 const labels: Record<string, string> = {
   money: "돈",
+  purchase: "구매",
   thought: "생각",
   emotion: "감정",
   work: "일",
@@ -60,7 +61,8 @@ export default function Dashboard() {
     [breathing, setBreathing] = useState(false),
     [recovery, setRecovery] = useState(false),
     [cooling, setCooling] = useState<CoolingItem[]>([]),
-    [draftReady, setDraftReady] = useState(false);
+    [draftReady, setDraftReady] = useState(false),
+    [pieceFilter, setPieceFilter] = useState("all");
 
   const [month, setMonth] = useState(() => koreaDate().slice(0, 7)),
     [range, setRange] = useState(() => monthRange(koreaDate().slice(0, 7))),
@@ -108,7 +110,13 @@ export default function Dashboard() {
     const d = await r.json();
     if (!r.ok) throw Error(d.error);
     if (currentUser.current === user && sequence === reloadCount.current) {
-      setData({ ...blank, ...d });
+      const seen = new Set<string>();
+      const memos = (d.memos || []).filter((memo: Memo) => {
+        if (!memo?.id || seen.has(memo.id)) return false;
+        seen.add(memo.id);
+        return true;
+      });
+      setData({ ...blank, ...d, memos });
       setCooling((d.cooling || []).map(coolingFromRow));
     }
   }
@@ -311,9 +319,29 @@ export default function Dashboard() {
       memoRequest.current = { text: "", id: "" };
       setText("");
       localStorage.removeItem("pp_draft_text");
-      const pending = (result.fragments || []).filter(
-        (f: Fragment) => f.status === "pending",
-      ).length;
+      const fragments: Fragment[] = result.fragments || [];
+      const buys = fragments.filter((f) => f.intent === "buy");
+      for (const fragment of buys) {
+        if (!fragment.amount) continue;
+        await send({
+          action: "cooling",
+          item: {
+            id: crypto.randomUUID(),
+            title: (fragment.item || fragment.text).slice(0, 200),
+            amount: fragment.amount,
+            reason: fragment.text,
+            emotion: "충동",
+            coolDownHours: 24,
+            status: "cooling",
+          },
+        });
+      }
+      if (buys.length) setPage("cooling");
+      else if (fragments.some((f) => f.intent === "eat")) setPage("money");
+      const pending = fragments.filter((f) => f.status === "pending").length;
+      if (buys.length) return "사고 싶은 물건을 보류함으로 옮겼어요.";
+      if (fragments.some((f) => f.intent === "eat"))
+        return "먹고 싶은 것을 구매 쪽으로 연결했어요. 지출에는 넣지 않았어요.";
       return pending
         ? `저장 완료 · 확인이 필요한 항목이 ${pending}개 있습니다.`
         : "생각함에 남겼습니다.";
@@ -332,6 +360,7 @@ export default function Dashboard() {
 
   const nav: [string, string][] = [
     ["inbox", "생각함"],
+    ["pieces", "파편"],
     ["cooling", "충동 보류함"],
     ["money", "돈"],
     ["routine", "루틴"],
@@ -375,48 +404,73 @@ export default function Dashboard() {
     );
   }
 
+  function fragmentNotes(memo: Memo, fragment: Fragment, showText: boolean) {
+    return (
+      <div key={`${memo.id}-${fragment.id}`}>
+        {showText && <p>{fragment.text}</p>}
+        {fragment.item && fragment.intent && (
+          <p className="hint">
+            {fragment.intent === "buy" ? "사고 싶은 것" : "먹고 싶은 것"} ·{" "}
+            {fragment.item}
+          </p>
+        )}
+        <span className="tags">
+          {fragment.categories.map((c) => labels[c] || c).join(" · ")}
+          {fragment.amount ? ` · ${won(fragment.amount)}` : ""}
+        </span>
+        <span className="status">
+          {fragment.status === "posted"
+            ? "기록됨"
+            : fragment.status === "pending"
+              ? "확인 필요"
+              : "메모"}
+        </span>
+        {fragment.intent === "buy" && (
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => setPage("cooling")}
+          >
+            보류함으로 이동
+          </button>
+        )}
+        {fragment.status === "pending" && (
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => setCandidate({ memo, fragment })}
+          >
+            확인하고 가계부에 넣기
+          </button>
+        )}
+      </div>
+    );
+  }
   function memoCards(category?: string) {
     const list = data.memos.filter(
       (m) =>
         !category ||
-        (m.fragments || []).some((f) => f.categories?.includes(category as any)),
+        (m.fragments || []).some((f) => f.categories?.includes(category)),
     );
     if (!list.length) return <p className="empty">아직 남겨둔 메모가 없어요.</p>;
     return (
       <div className="fragments">
-        {list.map((m) => (
-          <div key={m.id} className="card">
-            <time>{m.created_at.slice(0, 10)}</time>
-            <p className="original">{m.body}</p>
-            <div>
-              {(m.fragments || []).map((f) => (
-                <div key={f.id}>
-                  <p>{f.text}</p>
-                  <span className="tags">
-                    {f.categories.map((c) => labels[c] || c).join(" · ")}
-                    {f.amount ? ` · ${won(f.amount)}` : ""}
-                  </span>
-                  <span className="status">
-                    {f.status === "posted"
-                      ? "기록됨"
-                      : f.status === "pending"
-                        ? "확인 필요"
-                        : "메모"}
-                  </span>
-                  {f.status === "pending" && (
-                    <button
-                      type="button"
-                      className="text-button"
-                      onClick={() => setCandidate({ memo: m, fragment: f })}
-                    >
-                      확인하고 가계부에 넣기
-                    </button>
-                  )}
-                </div>
-              ))}
+        {list.map((m) => {
+          const pieces = m.fragments || [];
+          const repeated =
+            pieces.length === 1 && pieces[0].text.trim() === m.body.trim();
+          return (
+            <div key={m.id} className="card">
+              <time>{m.created_at.slice(0, 10)}</time>
+              <p className="original">{m.body}</p>
+              <div>
+                {pieces.map((f) =>
+                  fragmentNotes(m, f, !repeated),
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   }
@@ -604,9 +658,91 @@ export default function Dashboard() {
           </>
         )}
 
+        {page === "pieces" && (
+          <section className="card">
+            <h2>나뉜 메모</h2>
+            <p>완료한 뒤에 나뉜 조각을 여기서 다시 볼 수 있어요.</p>
+            <div className="form-row">
+              {(
+                [
+                  ["all", "전체"],
+                  ["purchase", "구매"],
+                  ["money", "돈"],
+                  ["emotion", "감정"],
+                  ["work", "일"],
+                  ["breathe", "숨고르기"],
+                  ["thought", "생각"],
+                ] as const
+              ).map(([id, name]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={pieceFilter === id ? "selected" : "secondary"}
+                  onClick={() => setPieceFilter(id)}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+            <div className="fragments">
+              {data.memos.flatMap((memo) =>
+                (memo.fragments || [])
+                  .filter(
+                    (fragment) =>
+                      pieceFilter === "all" ||
+                      fragment.categories.includes(pieceFilter),
+                  )
+                  .map((fragment) => (
+                    <div className="card" key={`${memo.id}-${fragment.id}`}>
+                      <time>{memo.created_at.slice(0, 10)}</time>
+                      {fragmentNotes(memo, fragment, true)}
+                    </div>
+                  )),
+              )}
+            </div>
+          </section>
+        )}
+
         {/* 2. COOLING OFF BOX TAB (NEW) */}
         {page === "cooling" && (
-          <CoolingOffBox
+          <>
+            <section className="card butter">
+              <h2>사고 싶다고 한 것</h2>
+              {data.memos.some((memo) =>
+                (memo.fragments || []).some(
+                  (fragment) =>
+                    fragment.intent === "buy" &&
+                    !cooling.some(
+                      (item) => item.title === (fragment.item || fragment.text),
+                    ),
+                ),
+              ) ? (
+                data.memos.flatMap((memo) =>
+                  (memo.fragments || [])
+                    .filter(
+                      (fragment) =>
+                        fragment.intent === "buy" &&
+                        !cooling.some(
+                          (item) =>
+                            item.title === (fragment.item || fragment.text),
+                        ),
+                    )
+                    .map((fragment) => (
+                      <div key={`${memo.id}-${fragment.id}`}>
+                        <b>{fragment.item || fragment.text}</b>
+                        <p className="hint">
+                          {fragment.amount
+                            ? won(fragment.amount)
+                            : "금액은 아직 없어요. 아래에서 적으면 보류 시간이 시작돼요."}
+                        </p>
+                      </div>
+                    )),
+                )
+              ) : (
+                <p className="hint">새로 사고 싶다고 한 물건이 없어요.</p>
+              )}
+            </section>
+            <CoolingOffBox
             items={cooling}
             onSave={async (item) =>
               !!(await action(async () => {
@@ -627,7 +763,8 @@ export default function Dashboard() {
               });
               if (!ok) throw Error("가계부 기록을 저장하지 못했습니다.");
             }}
-          />
+            />
+          </>
         )}
 
         {/* 3. ROUTINES TAB */}
@@ -703,6 +840,13 @@ export default function Dashboard() {
                 </p>
               )}
             </section>
+
+            <h2 className="section-heading">구매로 연결된 메모</h2>
+            <p className="hint">
+              먹고 싶다, 사고 싶다는 지출로 합산하지 않아요. 사고 싶다는 보류함으로
+              옮겨요.
+            </p>
+            {memoCards("purchase")}
 
             <EntryForm
               candidate={candidate}
