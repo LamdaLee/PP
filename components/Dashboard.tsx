@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { RoutineManager, useRoutines } from "./Routines";
 import { Brand } from "./Brand";
+import { FirstUseExample, RecordGuide } from "./RecordGuide";
 import { Auth } from "./Auth";
 import { EntryForm } from "./EntryForm";
 import { ScheduleForm } from "./ScheduleForm";
@@ -70,6 +71,8 @@ export default function Dashboard() {
     [draftUser, setDraftUser] = useState<string | null>(null),
     [draftWarning, setDraftWarning] = useState(""),
     [legacyAvailable, setLegacyAvailable] = useState(false),
+    [showEmotionExpense, setShowEmotionExpense] = useState(false),
+    [saveSummary, setSaveSummary] = useState<{ wishes: number; pending: number; tasks: number; posted: number; records: number } | null>(null),
     [pieceFilter, setPieceFilter] = useState("all"),
     [heart, setHeart] = useState<"write" | "pieces" | "emotion">("write"),
     [memoQuery, setMemoQuery] = useState(""),
@@ -184,6 +187,7 @@ export default function Dashboard() {
         accountGeneration.current++;
         reloadCount.current++;
         setData(blank); setCooling([]); setCandidate(null); setEditingId(null);
+        setSaveSummary(null); setShowEmotionExpense(false);
         setError(""); setNotice(""); setSync("동기화 중");
       }
       setSession(s);
@@ -390,18 +394,10 @@ export default function Dashboard() {
       if (session) writeMemoDraft(browserDraftStorage(), session.user.id, "");
       const fragments: Fragment[] = result.fragments || [];
       const buys = fragments.filter((f) => f.intent === "buy" && f.status !== "posted");
-      if (buys.length) setPage("cooling");
-      else if (fragments.some((f) => f.intent === "eat")) setPage("money");
-      const pending = fragments.filter((f) => f.status === "pending").length;
-      if (buys.length) return "사고 싶은 건 잠깐 두기로 옮겼어요.";
-      if (fragments.some((f) => f.intent === "eat"))
-        return "먹고 싶은 건 갖고 싶음으로만 연결했어요. 가계부에는 넣지 않았어요.";
-      if (fragments.some((f) => f.categories?.includes("work"))) {
-        setPage("daily");
-        return "할 일로 나눴어요.";
-      }
-      if (pending) return "금액은 바로 넣지 않고, 가계부에서 한번 더 볼게요.";
-      return "마음함에 저장했어요.";
+      setSaveSummary({ records: fragments.length, wishes: buys.length, pending: fragments.filter(f => f.status === "pending").length,
+        tasks: fragments.filter(f => f.categories?.includes("work") && !f.done).length,
+        posted: fragments.filter(f => f.status === "posted").length });
+      return "메모를 저장하고 정리했어요.";
     });
   }
 
@@ -447,7 +443,7 @@ export default function Dashboard() {
     ["inbox", "마음함"],
     ["cooling", "잠깐 두기"],
     ["money", "가계부"],
-    ["daily", "일상"],
+    ["daily", "할 일과 루틴"],
     ["breathe", "숨고르기"],
   ];
 
@@ -479,9 +475,11 @@ export default function Dashboard() {
     return (
       <div className="auth">
         <Brand />
-        <h1>잠시 멈추고, 온전히 바라보기</h1>
-        <p>복잡하게 적지 않아도 괜찮아요. 마음함에 두면 가계부, 감정, 일상으로 이어집니다.</p>
+        <h1>복잡한 생각을 적어두고,<br />필요한 것부터 확인하세요.</h1>
+        <p>생각·할 일·사고 싶은 것을 한곳에 적어보세요. 필요한 기록으로 나눠드려요.</p>
+        <FirstUseExample />
         <Auth />
+        <RecordGuide />
       </div>
     );
   }
@@ -742,7 +740,7 @@ export default function Dashboard() {
               {(
                 [
                   ["write", "마음함"],
-                  ["pieces", "조각"],
+                  ["pieces", "분류된 기록"],
                   ["emotion", "감정"],
                 ] as const
               ).map(([id, name]) => (
@@ -784,37 +782,32 @@ export default function Dashboard() {
               />
               <div className="capture-footer">
                 <small>
-                  쓰는 동안에는 나누지 않아요. Enter는 줄바꿈이고, 완료하면
+                  쓰는 동안에는 나누지 않아요. Enter는 줄바꿈이고, 저장하면
                   정리해요.
                 </small>
                 <button disabled={busy || !text.trim()} onClick={saveMemo}>
-                  {busy ? "저장 중…" : "완료"}
+                  {busy ? "저장 중…" : "저장하고 정리하기"}
                 </button>
               </div>
             </section>
+            {!data.memos.length && <FirstUseExample />}
             {legacyAvailable && <p className="hint">이 브라우저에 계정이 표시되지 않은 이전 기록이 있어요. <button disabled={busy} type="button" className="text-button" onClick={importLegacyDrafts}>내 기록 확인하고 가져오기</button></p>}
             {draftWarning && <p className="hint" role="status">{draftWarning}</p>}
 
-            <div className="grid">
-              <div className="card butter">
-                <p className="eyebrow">이번 달 소비</p>
-                <h2>{won(data.monthTotals?.expense ?? 0)}</h2>
-                <p>대금·상환과 예정 금액은 따로 표시해요.</p>
-                <button
-                  className="text-button"
-                  onClick={() => setPage("money")}
-                >
-                  가계부 살펴보기 →
-                </button>
+            {saveSummary && <section className="card save-summary" aria-label="이번 저장 결과">
+              <h2>이번 기록을 확인해 보세요</h2>
+              <p>{saveSummary.records}개의 기록으로 정리했어요. {[["구매 희망", saveSummary.wishes], ["확인할 금액", saveSummary.pending], ["할 일", saveSummary.tasks], ["가계부 기록", saveSummary.posted]].filter(([, count]) => Number(count) > 0).map(([name, count]) => `${name} ${count}개`).join(" · ")}</p>
+              <div className="next-actions">
+                <button type="button" className="secondary" onClick={() => { setHeart("pieces"); setPieceFilter("all"); }}>분류된 기록 보기</button>
+                {saveSummary.wishes > 0 && <button type="button" className="secondary" onClick={() => setPage("cooling")}>보류한 물건 보기</button>}
+                {saveSummary.pending > 0 && <button type="button" className="secondary" onClick={() => { setHeart("pieces"); setPieceFilter("pending"); }}>확인할 금액 보기</button>}
+                {saveSummary.tasks > 0 && <button type="button" className="secondary" onClick={() => setPage("daily")}>할 일 보기</button>}
+                {saveSummary.posted > 0 && <button type="button" className="secondary" onClick={() => setPage("money")}>가계부 기록 보기</button>}
               </div>
-              {dueCards}
-            </div>
+            </section>}
+            {data.memos.some(m => m.fragments.some(f => f.status === "pending")) && <button type="button" className="text-button" onClick={() => { setHeart("pieces"); setPieceFilter("pending"); }}>확인이 필요한 기록 보기 →</button>}
 
-            <button className="text-button" onClick={() => setPage("daily")}>
-              일상에서 할 일 확인하기 →
-            </button>
-
-            <h2 className="section-heading">마음함</h2>
+            <h2 className="section-heading">최근 기록</h2>
             <label>
               찾기
               <input
@@ -827,42 +820,51 @@ export default function Dashboard() {
               <p className="hint">오래된 메모 일부는 아직 이 화면에 없어요.</p>
             )}
             {memoCards()}
+            <details className="content-fold"><summary>소비와 일정 요약 보기</summary>
+            <div className="grid">
+              <div className="card butter">
+                <p className="eyebrow">이번 달 소비</p>
+                <h2>{data.monthTotals ? won(data.monthTotals.expense) : "불러오는 중…"}</h2>
+                <p>대금·상환과 예정 금액은 따로 표시해요.</p>
+                <button
+                  className="text-button"
+                  onClick={() => setPage("money")}
+                >
+                  가계부 살펴보기 →
+                </button>
+              </div>
+              {dueCards}
+            </div>
+
+            <button className="text-button" onClick={() => setPage("daily")}>
+              할 일과 루틴 확인하기 →
+            </button>
+
+            </details>
+            <RecordGuide />
           </>
             )}
 
         {heart === "pieces" && (
           <section className="card">
-            <h2>나뉜 메모</h2>
-            <p>완료한 뒤에 나뉜 조각을 여기서 다시 볼 수 있어요.</p>
-            <div className="tabs" aria-label="조각 분류">
-              {(
-                [
-                  ["all", "전체"],
-                  ["purchase", "갖고 싶음"],
-                  ["money", "가계부"],
-                  ["emotion", "감정"],
-                  ["work", "할 일"],
-                  ["breathe", "숨고르기"],
-                  ["thought", "그대로"],
-                ] as const
-              ).map(([id, name]) => (
-                <button
-                  key={id}
-                  type="button"
-                  className={pieceFilter === id ? "selected" : "secondary"}
-                  onClick={() => setPieceFilter(id)}
-                >
-                  {name}
-                </button>
-              ))}
+            <h2>분류된 기록</h2>
+            <p>저장한 내용을 분류별로 확인하고, 필요한 기록부터 처리해요.</p>
+            <div className="tabs" aria-label="기록 보기">
+              {[["all", "전체"], ["pending", "확인 필요"]].map(([id, name]) => <button type="button" key={id} aria-pressed={pieceFilter === id} className={pieceFilter === id ? "selected" : "secondary"} onClick={() => setPieceFilter(id)}>{name}</button>)}
             </div>
+            <details className="content-fold"><summary>분류별 보기</summary>
+              <div className="tabs">
+                {[["purchase", "구매 희망"], ["money", "가계부"], ["emotion", "감정"], ["work", "할 일"], ["breathe", "숨고르기"], ["thought", "그대로"]].map(([id, name]) => <button type="button" key={id} aria-pressed={pieceFilter === id} className={pieceFilter === id ? "selected" : "secondary"} onClick={() => setPieceFilter(id)}>{name}</button>)}
+              </div>
+            </details>
+            {!data.memos.some(m => m.fragments.some(f => pieceFilter === "all" || (pieceFilter === "pending" ? f.status === "pending" : f.categories.includes(pieceFilter)))) && <p className="hint">{pieceFilter === "pending" ? "확인이 필요한 기록이 없어요." : "이 분류에 해당하는 기록이 없어요."}</p>}
             <div className="fragments">
               {data.memos.flatMap((memo) =>
                 (memo.fragments || [])
                   .filter(
                     (fragment) =>
                       pieceFilter === "all" ||
-                      fragment.categories.includes(pieceFilter),
+                      (pieceFilter === "pending" ? fragment.status === "pending" : fragment.categories.includes(pieceFilter)),
                   )
                   .map((fragment) => (
                     <div className="card" key={`${memo.id}-${fragment.id}`}>
@@ -901,11 +903,12 @@ export default function Dashboard() {
                 <section className="card apricot">
                   <h2>감정</h2>
                   <p>
-                    감정으로 나뉜 말이에요. 같은 날의 가계부 소비를 옆에 두지만,
-                    그 감정이 소비의 이유라고 보지 않아요.
+                    감정으로 나뉜 말이에요. 판단하거나 평가하지 않고, 적었던 마음을 다시 살펴봐요.
                   </p>
                 </section>
-                {memoCards("emotion", (memo) => {
+                <label className="check-label"><input type="checkbox" checked={showEmotionExpense} onChange={e => setShowEmotionExpense(e.target.checked)} />같은 날의 소비도 함께 보기</label>
+                {showEmotionExpense && <p className="hint">같은 날의 기록을 나란히 볼 뿐, 감정이 소비의 원인이라고 판단하지 않아요.</p>}
+                {memoCards("emotion", showEmotionExpense ? (memo) => {
                   const day = koreaDate(new Date(memo.created_at));
                   const spent = expenseOnDate(data.entries, day, range, !!data.totals && !data.entriesTruncated);
                   return (
@@ -918,7 +921,7 @@ export default function Dashboard() {
                       }}>해당 월 가계부 보기</button>}
                     </p>
                   );
-                })}
+                } : undefined)}
               </>
             )}
           </>
@@ -927,40 +930,10 @@ export default function Dashboard() {
         {/* 2. COOLING OFF BOX TAB (NEW) */}
         {page === "cooling" && (
           <>
-            <section className="card butter">
-              <h2>사고 싶다고 한 것</h2>
-              {data.memos.some((memo) =>
-                (memo.fragments || []).some((fragment) => fragment.intent === "buy"),
-              ) ? (
-                data.memos.flatMap((memo) =>
-                  (memo.fragments || [])
-                    .filter((fragment) => fragment.intent === "buy")
-                    .map((fragment) => {
-                      const waiting = cooling.some(
-                        (item) =>
-                          item.status === "cooling" &&
-                          item.title === (fragment.item || fragment.text),
-                      );
-                      return (
-                        <div key={`${memo.id}-${fragment.id}`}>
-                          <b>{fragment.item || fragment.text}</b>
-                          <p className="hint">
-                            {waiting
-                              ? "잠깐 두기에 있어요."
-                              : fragment.amount
-                                ? won(fragment.amount)
-                                : "금액은 아직 없어요."}
-                          </p>
-                        </div>
-                      );
-                    }),
-                )
-              ) : (
-                <p className="hint">새로 사고 싶다고 한 물건이 없어요.</p>
-              )}
-            </section>
             <CoolingOffBox
+            key={session.user.id}
             items={cooling}
+            onBreathe={() => setBreathing(true)}
             busy={busy}
             onSave={async (item) =>
               !!(await action(async () => {
@@ -1303,6 +1276,7 @@ export default function Dashboard() {
 
             {dueCards}
 
+            <details className="content-fold"><summary>정기 입금·납부 관리</summary>
             <ScheduleForm
               busy={busy}
               onSave={(body) =>
@@ -1426,8 +1400,10 @@ export default function Dashboard() {
               )}
             </section>
 
-            <h2 className="section-heading">가계부와 연결된 메모</h2>
+            </details>
+            <details className="content-fold"><summary>가계부와 연결된 원문 보기</summary>
             {memoCards("money")}
+            </details>
           </>
         )}
 

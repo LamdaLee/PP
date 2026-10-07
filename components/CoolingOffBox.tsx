@@ -44,16 +44,18 @@ export function CoolingOffBox({
   items,
   busy,
   onSave,
+  onBreathe,
   onConvertToExpense,
 }: {
   items: CoolingItem[];
   busy: boolean;
+  onBreathe: () => void;
   onSave: (item: CoolingItem) => Promise<boolean>;
   onConvertToExpense: (item: CoolingItem, method: string) => Promise<boolean>;
 }) {
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
-  const [emotion, setEmotion] = useState("스트레스 해소");
+  const [emotion, setEmotion] = useState("미기록");
   const [reason, setReason] = useState("");
   const [hours, setHours] = useState(24);
   const [now, setNow] = useState(Date.now());
@@ -61,7 +63,7 @@ export function CoolingOffBox({
   const newItemId = useRef(crypto.randomUUID());
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
+    const timer = setInterval(() => setNow(Date.now()), 60000);
     return () => clearInterval(timer);
   }, []);
 
@@ -88,6 +90,8 @@ export function CoolingOffBox({
     setTitle("");
     setAmount("");
     setReason("");
+    setEmotion("미기록");
+    setHours(24);
     setMessage("잠깐 두기에 담았어요. 다른 기기에도 같이 보여요.");
     setTimeout(() => setMessage(""), 4000);
   };
@@ -110,11 +114,6 @@ export function CoolingOffBox({
   };
 
   const activeCooling = items.filter((it) => it.status === "cooling");
-  const savedItems = items.filter((it) => it.status === "saved");
-  const totalSavedMoney = savedItems.reduce(
-    (acc, it) => acc + (it.amount || 0),
-    0,
-  );
 
   return (
     <>
@@ -125,11 +124,7 @@ export function CoolingOffBox({
           사고 싶은 물건은 바로 결제하지 않고 여기에 둡니다. 금액이 없어도
           괜찮아요. 가계부 소비에는 들어가지 않아요.
         </p>
-        {totalSavedMoney > 0 && (
-          <p className="notice">
-            사지 않고 넘어간 금액 {won(totalSavedMoney)}
-          </p>
-        )}
+        <button type="button" className="secondary" onClick={onBreathe}>결정 전에 잠깐 숨고르기</button>
       </section>
 
       {message && <p role="status" className="notice">{message}</p>}
@@ -137,9 +132,9 @@ export function CoolingOffBox({
       {/* Input Form Card */}
       <section className="card capture">
         <h2>여기에 두기</h2>
-        <p>지금 느끼는 감정과, 왜 사고 싶은지 적어 두세요.</p>
+        <p>물건 이름만 적어도 돼요. 나머지는 필요할 때 추가하세요.</p>
         <form onSubmit={handleAdd}>
-          <div className="form-row">
+          <div>
             <label>
               사고 싶은 물건
               <input
@@ -150,6 +145,9 @@ export function CoolingOffBox({
                 required
               />
             </label>
+          </div>
+          <details className="content-fold"><summary>금액·감정·대기 시간 추가하기 (선택)</summary>
+          <div className="form-row">
             <label>
               금액(원, 없어도 돼요)
               <input
@@ -164,6 +162,7 @@ export function CoolingOffBox({
             <label>
               지금 느끼는 감정
               <select disabled={busy} value={emotion} onChange={(e) => setEmotion(e.target.value)}>
+                <option value="미기록">선택하지 않음</option>
                 <option value="스트레스">스트레스 해소</option>
                 <option value="보상심리">수고한 나를 위한 보상</option>
                 <option value="불안">불안 / 품절 조급함</option>
@@ -181,14 +180,15 @@ export function CoolingOffBox({
             </label>
           </div>
           <label>
-            하루 뒤에도 정말 필요할까요? 구매하려는 진짜 이유
+            사고 싶은 이유 (선택)
             <input
               disabled={busy}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="예: 오늘 피곤해서 충동이 드는 것 같다. 내일까지 참아보자."
+              placeholder="예: 지금 쓰는 물건이 고장 나서 필요하다."
             />
           </label>
+          </details>
           <div className="capture-footer">
             <small>여기에 있는 동안은 가계부에 넣지 않아요.</small>
             <button type="submit" disabled={busy}>잠깐 두기</button>
@@ -208,15 +208,15 @@ export function CoolingOffBox({
               const isExpired = diffMs <= 0;
               const hoursLeft = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60)));
               const minsLeft = Math.max(0, Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60)));
-              const secsLeft = Math.max(0, Math.floor((diffMs % (1000 * 60)) / 1000));
+
 
               return (
                 <div className="due" key={item.id}>
                   <div>
                     <b>{item.title}</b>
                     <small>
-                      {item.amount ? won(item.amount) : "금액 없음"} · 감정:{" "}
-                      {item.emotion}
+                      {item.amount ? won(item.amount) : "금액 없음"}
+                      {item.emotion && item.emotion !== "미기록" && ` · 감정: ${item.emotion}`}
                       {item.reason && ` · "${item.reason}"`}
                     </small>
                   </div>
@@ -224,10 +224,10 @@ export function CoolingOffBox({
                     <span className="status" style={{ fontWeight: 600 }}>
                       {isExpired
                         ? "시간이 지났어요. 다시 볼까요?"
-                        : `남은 시간 ${hoursLeft}시간 ${minsLeft}분 ${secsLeft}초`}
+                        : `남은 시간 ${hoursLeft}시간 ${minsLeft}분`}
                     </span>
                   </div>
-                  <div style={{ display: "flex", gap: "8px" }}>
+                  <div className="next-actions">
                     <button
                       type="button"
                       disabled={busy}
@@ -285,6 +285,9 @@ export function CoolingOffBox({
           </div>
         )}
       </section>
+      {items.some(item => item.status !== "cooling") && <details className="card content-fold"><summary>결정한 물건 기록 보기</summary>
+        {items.filter(item => item.status !== "cooling").map(item => <div className="due" key={item.id}><b>{item.title}</b><span>{item.status === "saved" ? "사지 않기로 함" : "구매 기록 완료"}</span></div>)}
+      </details>}
     </>
   );
 }
