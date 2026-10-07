@@ -146,8 +146,45 @@ begin
  if n = 0 then raise exception '메모가 없습니다'; end if;
 end $$;
 
-revoke all on function public.save_memo(uuid,text,jsonb),public.save_entry(uuid,text,text,bigint,date,text,uuid,text),public.void_entry(uuid),public.settle_schedule(uuid,date,date,uuid),public.update_memo(uuid,text,jsonb),public.delete_memo(uuid) from public,anon;
-grant execute on function public.save_memo(uuid,text,jsonb),public.save_entry(uuid,text,text,bigint,date,text,uuid,text),public.void_entry(uuid),public.settle_schedule(uuid,date,date,uuid),public.update_memo(uuid,text,jsonb),public.delete_memo(uuid) to authenticated;
+create or replace function public.revise_entry(p_id uuid, p_title text, p_kind text, p_amount bigint, p_date date, p_method text) returns uuid
+language plpgsql security invoker set search_path=public,pg_temp as $$
+declare n int;
+begin
+ if auth.uid() is null then raise exception '로그인이 필요합니다'; end if;
+ if p_title is null or length(btrim(p_title)) < 1 or length(p_title) > 500 then
+   raise exception '이름을 확인해 주세요';
+ end if;
+ update entries set title=btrim(p_title), kind=p_kind, amount=p_amount, occurred_on=p_date, payment_method=p_method
+ where id=p_id and user_id=auth.uid() and voided_at is null;
+ get diagnostics n = row_count;
+ if n = 0 then raise exception '거래가 없습니다'; end if;
+ return p_id;
+end $$;
+
+create or replace function public.revise_schedule(p_id uuid, p_title text, p_kind text, p_amount bigint, p_recurrence text, p_day int, p_start date, p_end date) returns uuid
+language plpgsql security invoker set search_path=public,pg_temp as $$
+declare n int;
+begin
+ if auth.uid() is null then raise exception '로그인이 필요합니다'; end if;
+ update schedules set title=p_title, kind=p_kind, amount=p_amount, recurrence=p_recurrence, day_of_month=p_day, start_date=p_start, end_date=p_end
+ where id=p_id and user_id=auth.uid() and active;
+ get diagnostics n = row_count;
+ if n = 0 then raise exception '예정 항목이 없습니다'; end if;
+ return p_id;
+end $$;
+
+create or replace function public.end_schedule(p_id uuid) returns void
+language plpgsql security invoker set search_path=public,pg_temp as $$
+declare n int;
+begin
+ if auth.uid() is null then raise exception '로그인이 필요합니다'; end if;
+ update schedules set active=false where id=p_id and user_id=auth.uid() and active;
+ get diagnostics n = row_count;
+ if n = 0 then raise exception '예정 항목이 없습니다'; end if;
+end $$;
+
+revoke all on function public.save_memo(uuid,text,jsonb),public.save_entry(uuid,text,text,bigint,date,text,uuid,text),public.void_entry(uuid),public.settle_schedule(uuid,date,date,uuid),public.update_memo(uuid,text,jsonb),public.delete_memo(uuid),public.revise_entry(uuid,text,text,bigint,date,text),public.revise_schedule(uuid,text,text,bigint,text,int,date,date),public.end_schedule(uuid) from public,anon;
+grant execute on function public.save_memo(uuid,text,jsonb),public.save_entry(uuid,text,text,bigint,date,text,uuid,text),public.void_entry(uuid),public.settle_schedule(uuid,date,date,uuid),public.update_memo(uuid,text,jsonb),public.delete_memo(uuid),public.revise_entry(uuid,text,text,bigint,date,text),public.revise_schedule(uuid,text,text,bigint,text,int,date,date),public.end_schedule(uuid) to authenticated;
 create or replace function public.ledger_totals(p_start date, p_end date)
 returns jsonb
 language plpgsql stable security invoker set search_path=public,pg_temp as $$

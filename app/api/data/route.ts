@@ -239,6 +239,27 @@ export async function POST(req: Request) {
     } else if (body.action === "memo-delete") {
       if (!UUID.test(body.id)) throw new ApiError("메모를 확인해 주세요.");
       result = await db.rpc("delete_memo", { p_id: body.id });
+    } else if (body.action === "memo-done") {
+      if (!UUID.test(body.id) || typeof body.fragmentId !== "string")
+        throw new ApiError("할 일을 확인해 주세요.");
+      const existing = await db
+        .from("memos")
+        .select("id,body,fragments")
+        .eq("id", body.id)
+        .maybeSingle();
+      if (existing.error) throw new ApiError("메모를 확인하지 못했습니다.");
+      if (!existing.data) throw new ApiError("메모가 없습니다.");
+      const fragments = (existing.data.fragments || []).map(
+        (fragment: { id?: string }) =>
+          fragment?.id === body.fragmentId
+            ? { ...fragment, done: body.done !== false }
+            : fragment,
+      );
+      result = await db.rpc("update_memo", {
+        p_id: body.id,
+        p_body: existing.data.body,
+        p_fragments: fragments,
+      });
     } else if (body.action === "entry") {
       result = await db.rpc("save_entry", {
         p_request_id: body.requestId,
@@ -252,6 +273,16 @@ export async function POST(req: Request) {
       });
     } else if (body.action === "void") {
       result = await db.rpc("void_entry", { p_id: body.id });
+    } else if (body.action === "entry-revise") {
+      if (!UUID.test(body.id)) throw new ApiError("기록을 확인해 주세요.");
+      result = await db.rpc("revise_entry", {
+        p_id: body.id,
+        p_title: body.title,
+        p_kind: body.kind,
+        p_amount: body.amount,
+        p_date: body.date,
+        p_method: body.method || "cash",
+      });
     } else if (body.action === "schedule") {
       const s = body.schedule;
       result = await db.rpc("save_schedule", {
@@ -264,6 +295,22 @@ export async function POST(req: Request) {
         p_start: s.start,
         p_end: s.end || null,
       });
+    } else if (body.action === "schedule-revise") {
+      const s = body.schedule || {};
+      if (!UUID.test(s.id)) throw new ApiError("일정을 확인해 주세요.");
+      result = await db.rpc("revise_schedule", {
+        p_id: s.id,
+        p_title: s.title,
+        p_kind: s.kind,
+        p_amount: s.amount,
+        p_recurrence: s.recurrence,
+        p_day: s.recurrence === "monthly" ? s.day : null,
+        p_start: s.start,
+        p_end: s.end || null,
+      });
+    } else if (body.action === "schedule-end") {
+      if (!UUID.test(body.id)) throw new ApiError("일정을 확인해 주세요.");
+      result = await db.rpc("end_schedule", { p_id: body.id });
     } else if (body.action === "settle") {
       result = await db.rpc("settle_schedule", {
         p_schedule: body.id,
@@ -274,14 +321,20 @@ export async function POST(req: Request) {
     } else if (body.action === "cooling") {
       const item = body.item || {};
       const title = String(item.title || "").trim();
-      const amount = Number(item.amount);
+      const amount =
+        item.amount === null || item.amount === "" || item.amount === undefined
+          ? null
+          : Number(item.amount);
       const status = String(item.status || "cooling");
       const hours = Number(item.coolDownHours || 24);
       if (!UUID.test(item.id)) throw new ApiError("보류 항목을 확인해 주세요.");
       if (title.length < 1 || title.length > 200)
         throw new ApiError("물건 이름을 1~200자로 입력해 주세요.");
-      if (!Number.isSafeInteger(amount) || amount < 1 || amount > 1e12)
-        throw new ApiError("금액은 양의 정수여야 합니다.");
+      if (
+        amount !== null &&
+        (!Number.isSafeInteger(amount) || amount < 1 || amount > 1e12)
+      )
+        throw new ApiError("금액은 비우거나 양의 정수로 적어 주세요.");
       if (!["cooling", "saved", "purchased"].includes(status))
         throw new ApiError("보류 상태를 확인해 주세요.");
       if (!Number.isInteger(hours) || hours < 1 || hours > 168)

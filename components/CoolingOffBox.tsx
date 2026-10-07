@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 export interface CoolingItem {
   id: string;
   title: string;
-  amount: number;
+  amount: number | null;
   reason: string;
   emotion: string;
   coolDownHours: number;
@@ -19,7 +19,7 @@ const won = (n: number) => new Intl.NumberFormat("ko-KR").format(n) + "원";
 export function coolingFromRow(row: {
   id: string;
   title: string;
-  amount: number;
+  amount: number | null;
   reason: string | null;
   emotion: string;
   cool_down_hours: number;
@@ -30,7 +30,7 @@ export function coolingFromRow(row: {
   return {
     id: row.id,
     title: row.title,
-    amount: Number(row.amount),
+    amount: row.amount == null ? null : Number(row.amount),
     reason: row.reason || "",
     emotion: row.emotion,
     coolDownHours: row.cool_down_hours,
@@ -64,8 +64,9 @@ export function CoolingOffBox({
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    const numAmount = Number(amount);
-    if (!title.trim() || !numAmount || numAmount <= 0) return;
+    const numAmount = amount.trim() ? Number(amount) : null;
+    if (!title.trim() || (numAmount !== null && (!numAmount || numAmount <= 0)))
+      return;
     const createTime = new Date();
     const expireTime = new Date(createTime.getTime() + hours * 60 * 60 * 1000);
     const newItem: CoolingItem = {
@@ -83,39 +84,47 @@ export function CoolingOffBox({
     setTitle("");
     setAmount("");
     setReason("");
-    setMessage("충동구매 보류함에 담았어요. 다른 기기에도 같이 보여요.");
+    setMessage("잠깐 두기에 담았어요. 다른 기기에도 같이 보여요.");
     setTimeout(() => setMessage(""), 4000);
   };
 
   const handleCancelAndSave = async (item: CoolingItem) => {
     if (!(await onSave({ ...item, status: "saved" }))) return;
-    setMessage(`충동을 멋지게 이겨내셨어요! ${won(item.amount)}을 지켰습니다.`);
+    setMessage(
+      item.amount
+        ? `지금 사지 않기로 했어요. ${won(item.amount)}은 가계부에 넣지 않았어요.`
+        : "지금 사지 않기로 했어요.",
+    );
     setTimeout(() => setMessage(""), 5000);
   };
 
   const handleConfirmPurchase = async (item: CoolingItem) => {
+    if (!item.amount) return;
     await onConvertToExpense({ title: item.title, amount: item.amount });
     if (!(await onSave({ ...item, status: "purchased" }))) return;
-    setMessage(`${item.title}을(를) 정식 가계부 지출로 기록했습니다.`);
+    setMessage(`${item.title}을(를) 가계부 소비로 적었어요.`);
     setTimeout(() => setMessage(""), 4000);
   };
 
   const activeCooling = items.filter((it) => it.status === "cooling");
   const savedItems = items.filter((it) => it.status === "saved");
-  const totalSavedMoney = savedItems.reduce((acc, it) => acc + it.amount, 0);
+  const totalSavedMoney = savedItems.reduce(
+    (acc, it) => acc + (it.amount || 0),
+    0,
+  );
 
   return (
     <>
       <section className="card butter">
         <p className="eyebrow">잠시 멈추고, 마음을 식히는 시간</p>
-        <h2>충동구매 24시간 쿨링오프 보류함</h2>
+        <h2>잠깐 두기</h2>
         <p>
-          사고 싶은 물건이 생겼을 때 바로 결제하지 않고 보류함에 넣어둡니다.
-          가계부 지출로 합산되지 않으며, 하루 뒤에도 정말 필요한지 차분하게 재검토합니다.
+          사고 싶은 물건은 바로 결제하지 않고 여기에 둡니다. 금액이 없어도
+          괜찮아요. 가계부 소비에는 들어가지 않아요.
         </p>
         {totalSavedMoney > 0 && (
           <p className="notice">
-            🌱 충동 극복으로 아낀 금액 누적: <strong>{won(totalSavedMoney)}</strong>
+            사지 않고 넘어간 금액 {won(totalSavedMoney)}
           </p>
         )}
       </section>
@@ -124,8 +133,8 @@ export function CoolingOffBox({
 
       {/* Input Form Card */}
       <section className="card capture">
-        <h2>보류함에 담아두기 (지출 유보)</h2>
-        <p>지금 느끼는 감정과 구매하려는 진짜 이유를 솔직하게 적어보세요.</p>
+        <h2>여기에 두기</h2>
+        <p>지금 느끼는 감정과, 왜 사고 싶은지 적어 두세요.</p>
         <form onSubmit={handleAdd}>
           <div className="form-row">
             <label>
@@ -138,14 +147,13 @@ export function CoolingOffBox({
               />
             </label>
             <label>
-              금액(원)
+              금액(원, 없어도 돼요)
               <input
                 type="number"
                 min="1"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                placeholder="예: 45000"
-                required
+                placeholder="아직 모르면 비워 두세요"
               />
             </label>
             <label>
@@ -176,8 +184,8 @@ export function CoolingOffBox({
             />
           </label>
           <div className="capture-footer">
-            <small>보류함에 있는 동안은 지출로 합산되지 않습니다.</small>
-            <button type="submit">24시간 보류하기</button>
+            <small>여기에 있는 동안은 가계부에 넣지 않아요.</small>
+            <button type="submit">잠깐 두기</button>
           </div>
         </form>
       </section>
@@ -186,7 +194,7 @@ export function CoolingOffBox({
       <section className="card">
         <h2>현재 보류 중인 항목 ({activeCooling.length}개)</h2>
         {activeCooling.length === 0 ? (
-          <p className="hint">현재 보류 중인 충동구매 항목이 없습니다. 마음이 편안한 상태예요.</p>
+          <p className="hint">지금 두고 있는 물건이 없어요.</p>
         ) : (
           <div>
             {activeCooling.map((item) => {
@@ -201,15 +209,16 @@ export function CoolingOffBox({
                   <div>
                     <b>{item.title}</b>
                     <small>
-                      {won(item.amount)} · 감정: {item.emotion}
+                      {item.amount ? won(item.amount) : "금액 없음"} · 감정:{" "}
+                      {item.emotion}
                       {item.reason && ` · "${item.reason}"`}
                     </small>
                   </div>
                   <div>
                     <span className="status" style={{ fontWeight: 600 }}>
                       {isExpired
-                        ? "쿨링 완료! 재검토 시간"
-                        : `남은 시간: ${hoursLeft}시간 ${minsLeft}분 ${secsLeft}초`}
+                        ? "시간이 지났어요. 다시 볼까요?"
+                        : `남은 시간 ${hoursLeft}시간 ${minsLeft}분 ${secsLeft}초`}
                     </span>
                   </div>
                   <div style={{ display: "flex", gap: "8px" }}>
@@ -217,15 +226,37 @@ export function CoolingOffBox({
                       type="button"
                       onClick={() => handleCancelAndSave(item)}
                     >
-                      충동 극복 (절약 성공!)
+                      안 사기
                     </button>
-                    <button
-                      type="button"
-                      className="text-button"
-                      onClick={() => handleConfirmPurchase(item)}
-                    >
-                      여전히 필요함 (지출 기록)
-                    </button>
+                    {item.amount ? (
+                      <button
+                        type="button"
+                        className="text-button"
+                        onClick={() => handleConfirmPurchase(item)}
+                      >
+                        가계부에 적기
+                      </button>
+                    ) : (
+                      <form
+                        onSubmit={async (event) => {
+                          event.preventDefault();
+                          const next = Number(
+                            new FormData(event.currentTarget).get("amount"),
+                          );
+                          if (!Number.isSafeInteger(next) || next < 1) return;
+                          await onSave({ ...item, amount: next });
+                        }}
+                      >
+                        <input
+                          name="amount"
+                          type="number"
+                          min="1"
+                          placeholder="금액"
+                          aria-label={`${item.title} 금액`}
+                        />
+                        <button type="submit">금액 적기</button>
+                      </form>
+                    )}
                   </div>
                 </div>
               );

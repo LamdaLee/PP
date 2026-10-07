@@ -8,6 +8,7 @@ export type Fragment = {
   status: string;
   intent?: "buy" | "eat" | null;
   item?: string | null;
+  done?: boolean;
 };
 export type Memo = {
   id: string;

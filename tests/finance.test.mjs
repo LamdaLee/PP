@@ -35,6 +35,10 @@ test("한글 금액과 혼합 기록", () => {
   assert.equal(sentence.length, 1);
   assert.equal(sentence[0].text, "배가 고프고 집에 가고 싶어. 콜라 마시고 싶어.");
   assert.deepEqual(sentence[0].categories, ["thought"]);
+  const wanted = extractMemo("가방 구매하고 싶다")[0];
+  assert.equal(wanted.intent, "buy");
+  assert.equal(wanted.item, "가방");
+  assert.equal(wanted.categories.includes("money"), false);
   const bag = extractMemo("가방 사고 싶다")[0];
   assert.equal(bag.intent, "buy");
   assert.equal(bag.item, "가방");
