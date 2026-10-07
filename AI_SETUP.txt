@@ -1,0 +1,36 @@
+Pause&Ponder — OpenAI 연결 순서 (v0.2.1)
+
+제공된 최신 소스에 AI 추출 코드가 들어 있습니다. 실제 키는 포함하지 않았고 라이브 AI 호출도 아직 검증하지 않았습니다.
+
+1. OpenAI 플랫폼 https://platform.openai.com 에 로그인합니다.
+2. 사용할 API 프로젝트에서 API 키를 생성합니다. 키 발급 안내: https://developers.openai.com/api/docs/quickstart
+3. API 프로젝트의 결제/사용 가능 상태와 사용량을 확인합니다. 모델별 API 사용료가 발생합니다.
+4. Vercel에서 Pause&Ponder 프로젝트 → Settings → Environment Variables에 아래 두 값을 추가합니다.
+   OPENAI_API_KEY = 발급한 키
+   OPENAI_MODEL = gpt-5-mini
+   운영은 Production 환경에, 테스트 배포도 쓸 경우 Preview 환경에도 등록합니다.
+5. 기존 Supabase의 NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY는 유지합니다.
+6. 최신 ZIP의 소스 변경을 기존 저장소에 반영하고 Vercel을 재배포합니다. 기존 DB에 schema.sql을 다시 실행할 필요는 없습니다.
+7. 로그인한 뒤 생각함에 메모를 저장합니다. 성공 시 'AI로 정리하고 저장했어요'가 표시됩니다. 금전 후보는 확인 후 가계부에 넣습니다.
+8. 기본 분류로 저장했다면 API 키·모델 접근·결제 상태·Vercel 환경변수 적용/재배포 여부를 확인합니다. AI 실패해도 원문 저장을 유지합니다.
+9. OpenAI 프로젝트 Usage에서 호출과 사용량을 확인합니다. 실시간 데이터 동기화 확인은 별도로 두 기기에서 합니다.
+
+로컬 개발에서는 프로젝트 루트의 .env.local에 같은 두 값을 추가한 뒤 개발 서버를 재시작합니다.
+
+OPENAI_API_KEY=실제_API_키
+OPENAI_MODEL=gpt-5-mini
+
+키는 서버 전용입니다. NEXT_PUBLIC_OPENAI_API_KEY 같은 이름을 만들지 않습니다. 대화/공개 소스/ZIP에 실제 키를 포함하지 않습니다.
+
+사용 범위
+- OpenAI로 보내는 것은 현재 입력한 메모 파편의 id와 본문입니다.
+- AI는 돈·생각·감정·일·숨고르기 분류와 원화 금액/거래 유형 후보 추출만 합니다.
+- 합계·기간·납부일 계산은 기존 일반 코드/DB가 수행합니다.
+- AI가 추출한 새 금액은 반드시 확인 대기입니다.
+- '21000원 우산 구매' 같은 기존 규칙의 명확한 거래는 그대로 자동 반영합니다.
+- 20초 제한/실패/거절/형식 오류는 규칙 기반 저장으로 복귀합니다.
+- 키를 비워 두면 AI 비용 없이 규칙만 사용합니다.
+- 앱에는 아직 사용자별 강제 호출 상한이 없습니다. 공개 운영 전 상한을 추가하고 API 사용량을 확인하세요.
+
+표시 변경
+화면 이름 Pause&Ponder. 로그인 로고 96px, 데스크톱 메뉴 80px, 모바일 메뉴 64px. 새 코드를 배포해야 기존 운영 화면에 반영됩니다.
