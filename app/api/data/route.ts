@@ -1,22 +1,8 @@
-import { createClient } from "@supabase/supabase-js";
+import { authenticatedClient as client } from "@/lib/server";
 import { koreaDate } from "@/lib/finance.mjs";
 import { classifyMemo } from "@/lib/ai.mjs";
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
-async function client(req: Request) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL,
-    key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !key) throw Error("서버 환경변수가 설정되지 않았습니다.");
-  const token = req.headers.get("authorization")?.replace(/^Bearer /, "");
-  if (!token) throw Error("로그인이 필요합니다.");
-  const db = createClient(url, key, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const { data, error } = await db.auth.getUser(token);
-  if (error || !data.user) throw Error("로그인을 다시 확인해 주세요.");
-  return db;
-}
 function response(value: unknown, status = 200) {
   return Response.json(value, {
     status,
@@ -62,6 +48,7 @@ export async function POST(req: Request) {
     const body = JSON.parse(raw);
     let result;
     let aiMode: string | undefined;
+    let memoFragments: unknown;
     if (body.action === "memo") {
       if (
         typeof body.text !== "string" ||
@@ -74,7 +61,7 @@ export async function POST(req: Request) {
       // Avoid billing AI again after a successful save whose response was lost.
       const existing = await db
         .from("memos")
-        .select("id,body")
+        .select("id,body,fragments")
         .eq("request_id", body.requestId)
         .maybeSingle();
       if (existing.error) throw Error("저장 상태를 확인하지 못했습니다.");
@@ -85,10 +72,12 @@ export async function POST(req: Request) {
           ok: true,
           result: existing.data.id,
           aiMode: "reused",
+          fragments: existing.data.fragments,
         });
       }
       const classification = await classifyMemo(body.text, koreaDate());
       const fragments = classification.fragments;
+      memoFragments = fragments;
       aiMode = classification.aiMode;
       result = await db.rpc("save_memo", {
         p_request_id: body.requestId,
@@ -129,7 +118,12 @@ export async function POST(req: Request) {
       });
     else throw Error("지원하지 않는 작업입니다.");
     if (result.error) throw Error(result.error.message);
-    return response({ ok: true, result: result.data, aiMode });
+    return response({
+      ok: true,
+      result: result.data,
+      aiMode,
+      fragments: memoFragments,
+    });
   } catch (e) {
     return response(
       { error: e instanceof Error ? e.message : "저장 실패" },

@@ -386,7 +386,7 @@ header {
     background: #f9f8f5f5;
     backdrop-filter: blur(12px);
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     gap: 0;
     padding: 8px 8px max(8px, env(safe-area-inset-bottom));
     border-top: 1px solid var(--line);
@@ -504,5 +504,60 @@ aside .brand {
   }
   .auth .brand {
     flex-direction: column;
+  }
+}
+
+.routine-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--line);
+  padding: 16px 0;
+}
+.routine-row > div:first-child {
+  flex: 1;
+  min-width: 140px;
+}
+.routine-row small {
+  display: block;
+}
+.routine-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.routine-actions button {
+  padding: 8px 14px;
+}
+.weekday-list {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.weekday-list label,
+.check-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.weekday-list input,
+.check-label input {
+  width: 20px;
+  min-width: 20px;
+  min-height: 20px;
+}
+fieldset {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  margin: 12px 0 20px;
+  padding: 14px;
+}
+.weekday-list label {
+  margin-bottom: 0;
+}
+@media (max-width: 360px) {
+  nav button {
+    font-size: 11px;
   }
 }

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
+import { RoutineManager, RoutineToday, useRoutines } from "./Routines";
 import { browserClient } from "@/lib/supabase";
 import {
   koreaDate,
@@ -47,6 +48,7 @@ export default function Dashboard() {
   const memoRequest = useRef({ text: "", id: "" });
   const currentUser = useRef<string | null>(null);
   const reloadCount = useRef(0);
+  const routineController = useRoutines(session?.user.id || null);
   const configured =
     !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
     !!process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -216,6 +218,7 @@ export default function Dashboard() {
   const nav = [
     ["inbox", "생각함"],
     ["money", "돈"],
+    ["routine", "루틴"],
     ["work", "일"],
     ["emotion", "기록"],
     ["breathe", "숨고르기"],
@@ -439,9 +442,16 @@ export default function Dashboard() {
               </div>
               {dueCards}
             </div>
+            <RoutineToday controller={routineController} compact />
+            <button className="text-button" onClick={() => setPage("routine")}>
+              루틴 등록·관리 →
+            </button>
             <h2 className="section-heading">내려놓은 생각들</h2>
             {memoCards()}
           </>
+        )}
+        {page === "routine" && (
+          <RoutineManager controller={routineController} />
         )}
         {page === "money" && (
           <>
