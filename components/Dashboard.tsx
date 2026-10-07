@@ -42,7 +42,9 @@ const labels: Record<string, string> = {
   transfer: "이체",
   cash: "현금",
   debit: "체크카드",
-  credit: "신용카드",
+  credit: "카드",
+  phone: "휴대폰",
+  easy: "간편결제",
   account: "계좌",
 };
 
@@ -362,6 +364,10 @@ export default function Dashboard() {
       if (buys.length) return "사고 싶은 건 잠깐 두기로 옮겼어요.";
       if (fragments.some((f) => f.intent === "eat"))
         return "먹고 싶은 건 갖고 싶음으로만 연결했어요. 가계부에는 넣지 않았어요.";
+      if (fragments.some((f) => f.categories?.includes("work"))) {
+        setPage("daily");
+        return "할 일로 나눴어요.";
+      }
       if (pending) return "금액은 바로 넣지 않고, 가계부에서 한번 더 볼게요.";
     });
   }
@@ -889,34 +895,30 @@ export default function Dashboard() {
             <section className="card butter">
               <h2>사고 싶다고 한 것</h2>
               {data.memos.some((memo) =>
-                (memo.fragments || []).some(
-                  (fragment) =>
-                    fragment.intent === "buy" &&
-                    !cooling.some(
-                      (item) => item.title === (fragment.item || fragment.text),
-                    ),
-                ),
+                (memo.fragments || []).some((fragment) => fragment.intent === "buy"),
               ) ? (
                 data.memos.flatMap((memo) =>
                   (memo.fragments || [])
-                    .filter(
-                      (fragment) =>
-                        fragment.intent === "buy" &&
-                        !cooling.some(
-                          (item) =>
-                            item.title === (fragment.item || fragment.text),
-                        ),
-                    )
-                    .map((fragment) => (
-                      <div key={`${memo.id}-${fragment.id}`}>
-                        <b>{fragment.item || fragment.text}</b>
-                        <p className="hint">
-                          {fragment.amount
-                            ? won(fragment.amount)
-                            : "금액은 아직 없어요. 아래에서 적으면 보류 시간이 시작돼요."}
-                        </p>
-                      </div>
-                    )),
+                    .filter((fragment) => fragment.intent === "buy")
+                    .map((fragment) => {
+                      const waiting = cooling.some(
+                        (item) =>
+                          item.status === "cooling" &&
+                          item.title === (fragment.item || fragment.text),
+                      );
+                      return (
+                        <div key={`${memo.id}-${fragment.id}`}>
+                          <b>{fragment.item || fragment.text}</b>
+                          <p className="hint">
+                            {waiting
+                              ? "잠깐 두기에 있어요."
+                              : fragment.amount
+                                ? won(fragment.amount)
+                                : "금액은 아직 없어요."}
+                          </p>
+                        </div>
+                      );
+                    }),
                 )
               ) : (
                 <p className="hint">새로 사고 싶다고 한 물건이 없어요.</p>
@@ -938,7 +940,7 @@ export default function Dashboard() {
                   kind: "expense",
                   amount: item.amount,
                   date: koreaDate(),
-                  method: "credit",
+                  method: item.method,
                 });
               });
               if (!ok) throw Error("가계부 기록을 저장하지 못했습니다.");
@@ -1160,6 +1162,27 @@ export default function Dashboard() {
                         }
                         aria-label="날짜"
                       />
+                      <select
+                        value={entryEdit.method}
+                        onChange={(event) =>
+                          setEntryEdit({ ...entryEdit, method: event.target.value })
+                        }
+                        aria-label="결제 수단"
+                      >
+                        {Array.from(
+                          new Set([
+                            "credit",
+                            "cash",
+                            "phone",
+                            "easy",
+                            entryEdit.method,
+                          ]),
+                        ).map((method) => (
+                            <option key={method} value={method}>
+                              {labels[method] || method}
+                            </option>
+                          ))}
+                      </select>
                       <select
                         value={entryEdit.kind}
                         onChange={(event) =>

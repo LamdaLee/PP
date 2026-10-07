@@ -43,6 +43,13 @@ test("한글 금액과 혼합 기록", () => {
   assert.equal(bag.intent, "buy");
   assert.equal(bag.item, "가방");
   assert.ok(bag.categories.includes("purchase"));
+  const shoes = extractMemo("구두 사고싶어")[0];
+  assert.equal(shoes.intent, "buy");
+  assert.equal(shoes.item, "구두");
+  const errand = extractMemo("이마트 들러야 함")[0];
+  assert.ok(errand.categories.includes("work"));
+  assert.equal(errand.categories.includes("thought"), false);
+  assert.equal(errand.intent, null);
   const ice = extractMemo("아이스크림 먹고싶다")[0];
   assert.equal(ice.intent, "eat");
   assert.equal(ice.item, "아이스크림");
