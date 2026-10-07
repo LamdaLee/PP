@@ -29,6 +29,22 @@ async function pages<T extends Row>(
   }
   return { rows, truncated: true };
 }
+function fragmentsForRevision(
+  previous: { text?: string; status?: string }[] | null,
+  next: { text: string; status: string }[],
+) {
+  const kept = new Map<string, string>();
+  for (const fragment of previous || []) {
+    if (fragment?.status === "posted" || fragment?.status === "voided")
+      kept.set(String(fragment.text || "").trim(), fragment.status);
+  }
+  return next.map((fragment) => {
+    const status = kept.get(fragment.text.trim());
+    if (status) return { ...fragment, status };
+    if (fragment.status === "posted") return { ...fragment, status: "pending" };
+    return fragment;
+  });
+}
 function totalsOf(value: unknown) {
   const row =
     value && typeof value === "object" ? (value as Record<string, unknown>) : {};
@@ -193,6 +209,36 @@ export async function POST(req: Request) {
         p_body: body.text,
         p_fragments: fragments,
       });
+    } else if (body.action === "memo-update") {
+      if (!UUID.test(body.id)) throw new ApiError("메모를 확인해 주세요.");
+      if (
+        typeof body.text !== "string" ||
+        !body.text.trim() ||
+        body.text.length > 10000
+      )
+        throw new ApiError("메모를 1~10000자로 입력해 주세요.");
+      const existing = await db
+        .from("memos")
+        .select("id,fragments")
+        .eq("id", body.id)
+        .maybeSingle();
+      if (existing.error) throw new ApiError("메모를 확인하지 못했습니다.");
+      if (!existing.data) throw new ApiError("메모가 없습니다.");
+      const classification = await classifyMemo(body.text, koreaDate());
+      const fragments = fragmentsForRevision(
+        existing.data.fragments,
+        classification.fragments,
+      );
+      memoFragments = fragments;
+      aiMode = classification.aiMode;
+      result = await db.rpc("update_memo", {
+        p_id: body.id,
+        p_body: body.text,
+        p_fragments: fragments,
+      });
+    } else if (body.action === "memo-delete") {
+      if (!UUID.test(body.id)) throw new ApiError("메모를 확인해 주세요.");
+      result = await db.rpc("delete_memo", { p_id: body.id });
     } else if (body.action === "entry") {
       result = await db.rpc("save_entry", {
         p_request_id: body.requestId,

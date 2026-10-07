@@ -203,6 +203,11 @@ header {
   color: var(--sage);
   padding: 8px 4px;
 }
+.memo-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
 .secondary {
   background: #edf1ea;
   color: var(--sage);
