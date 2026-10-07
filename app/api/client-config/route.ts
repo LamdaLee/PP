@@ -1,4 +1,7 @@
-import { jsonResponse } from "@/lib/server";
+import { jsonResponse, optionsResponse } from "@/lib/server";
+export function OPTIONS() {
+  return optionsResponse();
+}
 export function GET() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL,
     key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
