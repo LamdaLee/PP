@@ -65,15 +65,21 @@ export function useRoutines(userId: string | null) {
         if (active) setError(e.message);
       });
     reload();
-    let ch = browserClient().channel(`routines-${userId}`);
+    const db = browserClient();
+    let ch = db.channel(`routines-${userId}`);
     for (const table of ["routines", "routine_logs"])
       ch = ch.on(
         "postgres_changes",
         { event: "*", schema: "public", table, filter: `user_id=eq.${userId}` },
         reload,
       );
-    ch.subscribe((status) => {
-      if (status === "SUBSCRIBED") reload();
+    void db.auth.getSession().then(async ({ data: { session } }) => {
+      if (!active) return;
+      if (session?.access_token) await db.realtime.setAuth(session.access_token);
+      if (!active) return;
+      ch.subscribe((status) => {
+        if (status === "SUBSCRIBED") reload();
+      });
     });
     const timer = setInterval(() => setNow(new Date()), 30000);
     const visible = () => {
