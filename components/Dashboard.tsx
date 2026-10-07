@@ -17,7 +17,8 @@ import {
   scheduleOccurrences,
   expenseOnDate,
 } from "@/lib/finance.mjs";
-import { browserDraftStorage, readMemoDraft, writeMemoDraft } from "@/lib/drafts.mjs";
+import { browserDraftStorage, readMemoDraft, writeMemoDraft, readLegacyDrafts, removeLegacyDraft } from "@/lib/drafts.mjs";
+import { accountMatches } from "@/lib/account-guard.mjs";
 import { Modal } from "./Modal";
 import type { Data, Fragment, Memo } from "@/lib/types";
 
@@ -68,6 +69,7 @@ export default function Dashboard() {
     [cooling, setCooling] = useState<CoolingItem[]>([]),
     [draftUser, setDraftUser] = useState<string | null>(null),
     [draftWarning, setDraftWarning] = useState(""),
+    [legacyAvailable, setLegacyAvailable] = useState(false),
     [pieceFilter, setPieceFilter] = useState("all"),
     [heart, setHeart] = useState<"write" | "pieces" | "emotion">("write"),
     [memoQuery, setMemoQuery] = useState(""),
@@ -96,7 +98,8 @@ export default function Dashboard() {
 
   const memoRequest = useRef({ text: "", id: "" });
   const actionBusy = useRef(false);
-  const coolingMoved = useRef(false);
+  const accountGeneration = useRef(0);
+  const actionAccount = useRef<{ userId: string | null; generation: number } | null>(null);
   const currentUser = useRef<string | null>(null);
   const reloadCount = useRef(0);
   const routineController = useRoutines(session?.user.id || null);
@@ -115,14 +118,8 @@ export default function Dashboard() {
     }
     const storage = browserDraftStorage();
     let saved = readMemoDraft(storage, user);
-    // Preserve the previous single-user draft during this format upgrade.
-    try {
-      const legacy = storage?.getItem("pp_draft_text");
-      if (!saved.text && legacy) {
-        saved = { text: legacy, requestId: "" };
-        if (writeMemoDraft(storage, user, legacy)) storage?.removeItem("pp_draft_text");
-      }
-    } catch { /* Draft persistence failure is surfaced below. */ }
+    const legacy = readLegacyDrafts(storage);
+    setLegacyAvailable(!!legacy.text || legacy.items.length > 0);
     setText(saved.text);
     memoRequest.current = { text: saved.text.trim(), id: saved.requestId };
     setDraftUser(user);
@@ -170,8 +167,9 @@ export default function Dashboard() {
     }
     const db = browserClient();
     let alive = true;
+    let authEventSeen = false;
     db.auth.getSession().then(({ data: { session: s } }) => {
-      if (alive) {
+      if (alive && !authEventSeen) {
         setSession(s);
         currentUser.current = s?.user.id || null;
         setReady(true);
@@ -180,8 +178,17 @@ export default function Dashboard() {
     const {
       data: { subscription },
     } = db.auth.onAuthStateChange((event, s) => {
+      authEventSeen = true;
+      const nextUser = s?.user.id || null;
+      if (currentUser.current !== nextUser) {
+        accountGeneration.current++;
+        reloadCount.current++;
+        setData(blank); setCooling([]); setCandidate(null); setEditingId(null);
+        setError(""); setNotice(""); setSync("동기화 중");
+      }
       setSession(s);
-      currentUser.current = s?.user.id || null;
+      setReady(true);
+      currentUser.current = nextUser;
       if (event === "PASSWORD_RECOVERY") setRecovery(true);
       if (!s) {
         setData(blank);
@@ -284,73 +291,79 @@ export default function Dashboard() {
     };
   }, [session, range.start, range.end]);
 
+  function accountSnapshot() {
+    return { userId: currentUser.current, generation: accountGeneration.current };
+  }
   async function send(body: unknown) {
+    const expected = actionAccount.current || { userId: session?.user.id || null, generation: accountGeneration.current };
     const db = browserClient();
-    const {
-      data: { session: s },
-    } = await db.auth.getSession();
-    if (!s) throw Error("로그인이 필요합니다.");
+    const { data: { session: s } } = await db.auth.getSession();
+    if (!s || s.user.id !== expected.userId || !accountMatches(expected, accountSnapshot()))
+      throw Error("계정이 변경됐어요. 현재 계정에서 다시 확인해 주세요.");
     const r = await fetch("/api/data", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${s.access_token}`,
-      },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${s.access_token}` },
       body: JSON.stringify(body),
     });
     const d = await r.json();
+    if (!accountMatches(expected, accountSnapshot())) throw Error("계정이 변경됐어요.");
     if (!r.ok) throw Error(d.error);
     return d;
   }
-  useEffect(() => {
-    if (!session || coolingMoved.current || sync !== "동기화됨") return;
-    const raw = localStorage.getItem("pp_cooling_off_items");
-    coolingMoved.current = true;
-    if (!raw) return;
-    let local: CoolingItem[] = [];
-    try {
-      local = JSON.parse(raw);
-    } catch {
-      return;
-    }
-    const ids = new Set(cooling.map((item) => item.id));
-    const missing = local.filter((item) => item?.id && !ids.has(item.id));
-    if (!missing.length) {
-      localStorage.removeItem("pp_cooling_off_items");
-      return;
-    }
-    void (async () => {
-      try {
-        for (const item of missing) await send({ action: "cooling", item });
-        localStorage.removeItem("pp_cooling_off_items");
-        await reload();
-      } catch {
-        coolingMoved.current = false;
+  async function importLegacyDrafts() {
+    const user = session?.user.id;
+    if (!user || actionBusy.current) return;
+    if (!window.confirm(`이 브라우저의 이전 기록은 소유자를 확인할 수 없어요. ${session.user.email || user} 계정의 기록이 맞나요? 현재 계정으로 가져올까요?`)) return;
+    return action(async () => {
+      const storage = browserDraftStorage();
+      const legacy = readLegacyDrafts(storage);
+      if (legacy.invalid) throw Error("이전 기록을 읽지 못했어요. 브라우저 저장소를 확인해 주세요.");
+      if (legacy.text) {
+        if (text.trim()) throw Error("현재 초안을 먼저 저장하거나 비운 뒤 가져와 주세요.");
+        if (!writeMemoDraft(storage, user, legacy.text)) throw Error("초안을 보관하지 못했어요.");
+        memoRequest.current = { text: legacy.text.trim(), id: "" };
+        setText(legacy.text);
+        if (!removeLegacyDraft(storage, "pp_draft_text", legacy.text)) throw Error("초안은 가져왔지만 이전 초안을 지우지 못했어요.");
       }
-    })();
-  }, [session, sync, cooling]);
+      const raw = storage?.getItem("pp_cooling_off_items");
+      const ids = new Set(cooling.map((item) => item.id));
+      for (const item of legacy.items) {
+        if (!item?.id) throw Error("이전 보류 기록의 형식을 확인해 주세요.");
+        if (!ids.has(item.id)) await send({ action: "cooling", item });
+      }
+      if (raw && !removeLegacyDraft(storage, "pp_cooling_off_items", raw)) throw Error("가져온 기록은 저장했지만 이전 보류 기록을 지우지 못했어요.");
+      setLegacyAvailable(false);
+      return "확인한 이전 기록을 현재 계정으로 가져왔어요.";
+    });
+  }
 
   async function action(fn: () => Promise<string | void>) {
     if (actionBusy.current) return false;
+    const expected = { userId: session?.user.id || null, generation: accountGeneration.current };
+    if (!accountMatches(expected, accountSnapshot())) return false;
+    actionAccount.current = expected;
     actionBusy.current = true;
     setBusy(true);
     setError("");
     setNotice("");
     try {
       const message = await fn();
+      if (!accountMatches(expected, accountSnapshot())) return false;
       setNotice(message || "기록했어요.");
       try {
         await reload();
       } catch {
+        if (!accountMatches(expected, accountSnapshot())) return false;
         setSync("저장됨 · 화면 갱신 대기");
         setNotice(`${message || "기록했어요."} 화면 갱신은 연결이 돌아오면 다시 할게요.`);
       }
-      return true;
+      return accountMatches(expected, accountSnapshot());
     } catch (e) {
-      setError(e instanceof Error ? e.message : "작업에 실패했습니다.");
+      if (accountMatches(expected, accountSnapshot())) setError(e instanceof Error ? e.message : "작업에 실패했습니다.");
       return false;
     } finally {
       actionBusy.current = false;
+      actionAccount.current = null;
       setBusy(false);
     }
   }
@@ -779,6 +792,7 @@ export default function Dashboard() {
                 </button>
               </div>
             </section>
+            {legacyAvailable && <p className="hint">이 브라우저에 계정이 표시되지 않은 이전 기록이 있어요. <button disabled={busy} type="button" className="text-button" onClick={importLegacyDrafts}>내 기록 확인하고 가져오기</button></p>}
             {draftWarning && <p className="hint" role="status">{draftWarning}</p>}
 
             <div className="grid">
@@ -1114,7 +1128,8 @@ export default function Dashboard() {
             {memoCards("purchase")}
 
             <EntryForm
-              key={candidate ? `${candidate.memo.id}:${candidate.fragment.id}` : "manual"}
+              key={`${session.user.id}:${candidate ? `${candidate.memo.id}:${candidate.fragment.id}` : "manual"}`}
+              userId={session.user.id}
               candidate={candidate}
               busy={busy}
               onCancel={() => setCandidate(null)}
@@ -1452,7 +1467,8 @@ export default function Dashboard() {
         <Modal label="메모를 확인하고 기록" onClose={() => { if (!busy) setCandidate(null); }}>
           <div className="dialog">
             <EntryForm
-              key={`${candidate.memo.id}:${candidate.fragment.id}`}
+              key={`${session.user.id}:${candidate.memo.id}:${candidate.fragment.id}`}
+              userId={session.user.id}
               candidate={candidate}
               busy={busy}
               onCancel={() => setCandidate(null)}
