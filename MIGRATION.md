@@ -42,3 +42,8 @@ https://pause-and-ponder.lamda-3698.chatgpt.site
 ## 다음 세션에서 준비할 정보
 
 프로젝트/저장소 위치, 배포 주소, Supabase 프로젝트가 기존인지 신규인지, 환경변수 등록 완료 여부, SQL 실행 여부, Auth/Realtime 확인 결과. 비밀번호·service_role·DB 비밀번호는 대화나 전달 문서에 넣지 않습니다. 필요한 운영 설정은 각 플랫폼의 환경변수/권한 설정에 직접 등록합니다.
+
+
+## v0.3 루틴·Android 추가
+
+기존 운영 앱 위에 루틴과 Android 동반 앱을 추가했습니다. 운영 DB는 `supabase/migrations/003_routines.sql`만 추가 실행합니다. `schema.sql`을 재실행하지 마세요. 상세 실행·업데이트·알림·동기화 한계는 `ROUTINES_ANDROID_UPDATE.txt`, Android 소스는 `android/`입니다.

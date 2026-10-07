@@ -1,13 +1,13 @@
-# Pause&Ponder — Next.js + Supabase 개발 시작 프로젝트 v0.2.1
+# Pause&Ponder — Next.js + Supabase 루틴·Android 업데이트 v0.3.0
 
-사용자의 파편적인 생각을 보관하고 돈·감정·일·숨고르기로 연결하는 개인 보조 앱입니다. 현재 우선순위는 충동구매와 금전 기록입니다. 자동 계산은 코드와 PostgreSQL이 수행합니다. OpenAI 키가 없으면 한국어 규칙으로 분류·추출합니다. 키를 설정하면 서버의 선택적 AI 추출도 사용합니다. 실제 키 등록과 라이브 AI 호출 검증은 아직 수행하지 않았습니다.
+사용자의 파편적인 생각을 보관하고 돈·감정·일·숨고르기로 연결하는 개인 보조 앱입니다. 현재 우선순위는 충동구매와 금전 기록입니다. 자동 계산은 코드와 PostgreSQL이 수행합니다. OpenAI 키가 없으면 한국어 규칙으로 분류·추출합니다. 키를 설정하면 서버의 선택적 AI 추출도 사용합니다. 사용자는 기존 운영 웹과 AI 동작을 확인했습니다. 이번 루틴·Android 업데이트의 운영 적용과 실기기 검증은 별도입니다.
 
 ## 시작
 
 필수 환경: Node.js 22 이상, 새 Supabase 프로젝트, 배포할 Vercel 계정. 패키지 버전은 package-lock.json을 기준으로 설치합니다.
 
 1. 프로젝트 폴더에서 `npm ci`를 실행합니다.
-2. **새 Supabase 프로젝트**의 SQL Editor에서 `supabase/schema.sql`을 한 번 실행합니다. 기존 프로젝트에 그대로 재실행하거나 기존 테이블을 지우지 마세요. 기존 운영 DB에는 별도 버전 마이그레이션이 필요합니다.
+2. **새 Supabase 프로젝트**의 SQL Editor에서 `supabase/schema.sql`을 한 번 실행합니다. 기존 프로젝트에 그대로 재실행하거나 기존 테이블을 지우지 마세요. 기존 운영 DB에는 `supabase/migrations/003_routines.sql`만 추가 실행합니다. 새 빈 프로젝트는 base schema 후 해당 마이그레이션을 실행합니다.
 3. `.env.example`을 `.env.local`로 복사합니다. Supabase 프로젝트 URL과 publishable key를 입력합니다. service_role / secret key는 이 프로젝트에 필요하지 않습니다.
 4. `npm run dev` 후 http://localhost:3000 에서 회원가입/로그인합니다. 이메일 인증을 켰다면 먼저 메일을 확인합니다.
 5. `npm test`와 `npm run build`로 검증합니다. 환경변수가 없으면 설정 안내 화면이 표시됩니다.
@@ -100,3 +100,8 @@ AI에 전송되는 자료는 저장하려는 메모 파편(id/본문)입니다. 
 
 기존 Supabase 테이블을 변경할 필요가 없는 코드 업데이트입니다. 운영 DB에 schema.sql을 재실행하지 마세요.
 공식 참고: https://developers.openai.com/api/docs/quickstart , https://developers.openai.com/api/docs/guides/structured-outputs , https://developers.openai.com/api/docs/models/gpt-5-mini
+
+
+## v0.3 루틴·Android 추가
+
+기존 운영 앱 위에 루틴과 Android 동반 앱을 추가했습니다. 운영 DB는 `supabase/migrations/003_routines.sql`만 추가 실행합니다. `schema.sql`을 재실행하지 마세요. 상세 실행·업데이트·알림·동기화 한계는 `ROUTINES_ANDROID_UPDATE.txt`, Android 소스는 `android/`입니다.

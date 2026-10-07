@@ -1,8 +1,8 @@
 Pause&Ponder — 계정·플랫폼 이동용 인계 문서
-버전 0.2.1 / 2026-10-07 / 작성 기준 시간대 Asia/Seoul
+버전 0.3.0 / 2026-10-07 / 작성 기준 시간대 Asia/Seoul
 
 1. 이 자료의 역할
-이 문서와 함께 제공한 Pause_Ponder_Handoff_v0.2.zip을 다른 개발 계정이나 플랫폼에 전달하면 현재 결정과 소스에서 이어갈 수 있다. 외부 서비스 권한, 앱 로그인, 운영 DB가 파일만으로 자동 이전되는 것은 아니다. 같은 Supabase 프로젝트와 같은 앱 Auth 사용자 ID를 사용해야 기존 데이터가 이어진다.
+이 문서와 함께 제공한 Pause_Ponder_Handoff_v0.3.zip을 다른 개발 계정이나 플랫폼에 전달하면 현재 결정과 소스에서 이어갈 수 있다. 외부 서비스 권한, 앱 로그인, 운영 DB가 파일만으로 자동 이전되는 것은 아니다. 같은 Supabase 프로젝트와 같은 앱 Auth 사용자 ID를 사용해야 기존 데이터가 이어진다.
 
 2. 사용자의 요청과 확정 결정
 - 앱 이름: Pause&Ponder. Ongi는 과거 이름.
@@ -28,7 +28,7 @@ Pause&Ponder — 계정·플랫폼 이동용 인계 문서
 - Postgres 변경 구독 후 API 재조회. 재연결/온라인/화면 복귀 때 다시 조회.
 - 원문, 거래, 일정, 완료 기록 네 테이블 RLS와 사용자별 참조 제약.
 - 재시도 UUID 및 원문 파편에 대한 중복 저장 방지. 동일 텍스트를 새 메모로 두 번 입력하는 의미 중복은 미검출.
-- OpenAI Responses/Structured Outputs 선택적 추출 코드를 추가했다. OPENAI_API_KEY가 없으면 규칙 기반. 기본 OPENAI_MODEL=gpt-5-mini. 실제 키 등록과 API 호출은 아직 검증하지 않았다.
+- OpenAI Responses/Structured Outputs 선택적 추출 코드를 추가했다. OPENAI_API_KEY가 없으면 규칙 기반. 기본 OPENAI_MODEL=gpt-5-mini. 사용자는 기존 운영 웹의 AI 기능이 잘 동작한다고 확인했다. 이 업데이트의 운영 적용은 별도다.
 - AI 추출 금액은 확인 대기이며 규칙의 확정 거래를 바꾸지 않는다. 20초 제한/실패 시 기본 분류 저장.
 - 로고 크기는 로그인 96px, 데스크톱 메뉴 80px, 모바일 메뉴 64px. 표시명 Pause&Ponder.
 
@@ -53,22 +53,35 @@ lib/finance.mjs: 금액 추출 및 집계 로직
 AI_SETUP.txt: AI 키 발급·서버 환경변수·재배포·실제 확인 절차
 
 6. 중요한 현재 상태
-사용자는 Supabase 프로젝트를 시작했다고 알렸다. 실제 프로젝트 ID/URL과 SQL 실행 여부는 확인되지 않았다. 새 프로젝트를 또 만들기 전에 사용자가 시작한 프로젝트를 확인한다.
-새 Next.js 프로젝트는 소스/SQL/테스트/빌드를 준비한 개발용 시작점이다. Vercel 운영 배포와 실제 Supabase 연결은 아직 수행하지 않았다. 이 문서를 읽는 개발자가 먼저 해당 설정의 존재 여부를 확인해야 한다. 로컬 계산과 PostgreSQL 테스트 성공이 실제 클라우드 동기화 성공을 뜻하지 않는다.
+사용자는 Supabase 프로젝트를 시작했다고 알렸다. 기존 운영 연결은 사용자 확인 완료이며 프로젝트 관리 권한은 이 자료에 포함되지 않는다. 새 프로젝트를 만들지 말고 사용자가 운영하는 기존 프로젝트를 이어 쓴다.
+사용자는 https://pouseponder.vercel.app 에 배포했고 기존 기능과 AI가 잘 동작한다고 확인했다. 이번 v0.3 루틴 SQL, 웹 소스, Android 설치는 아직 운영에 반영되지 않았다. 기존 DB를 초기화하지 않는다. 로컬 계산과 PostgreSQL 테스트 성공이 실제 클라우드 동기화 성공을 뜻하지 않는다.
 기존 정적 UI 데모는 https://pause-and-ponder.lamda-3698.chatgpt.site 이며 브라우저 localStorage만 사용한다. 새 프로젝트와 데이터가 연결되거나 자동 이전되지 않았다. 현재 계정 전용 주소일 수 있다. 원본 데모를 지우지 말고 백업/검토 후 import를 구현한다.
-미저장 초안은 화면 메모리에만 남는다. 새로고침/탭 종료에 대한 초안 보존, 오프라인 저장/충돌 처리, 전체 데이터 export/import, 페이지네이션은 미구현.
-업무 순서/체크리스트/루틴, 감정 점수와 일별 타임라인, 충동구매 보류함, 월 예산 한도, 일정 편집/중단 UI, 비밀번호 재설정은 다음 단계다. 이 기능들이 완료됐다고 사용자에게 설명하면 안 된다.
+웹 미저장 초안은 화면 메모리에만 남는다. Android 동반 앱만 암호화 초안/오프라인 큐/상태 충돌 검사를 제공한다. 전체 데이터 export/import 및 기존 금융 자료의 페이지네이션은 미구현.
+업무 순서/체크리스트, 감정 점수와 일별 타임라인, 충동구매 보류함, 월 예산 한도, 일정 편집/중단 UI, 비밀번호 재설정은 다음 단계다. 이 기능들이 완료됐다고 사용자에게 설명하면 안 된다.
 
 7. 다른 계정에서 이어갈 때
 ChatGPT/개발 계정 변경은 ZIP과 이 문서를 전달하면 된다. Vercel 운영 계정 변경은 권한 이전 또는 새 배포 + 같은 Supabase 설정을 사용한다. 같은 앱 사용자로 로그인한다. 새 앱 가입은 다른 사용자 ID이므로 기존 자료가 자동으로 보이지 않는다.
 Supabase 프로젝트까지 변경하면 Auth와 데이터/ID/정책/함수 이관이 필요하다. MIGRATION.md를 따르고 공식 지원 절차를 확인한다. .env 실값이나 비밀번호/비밀키는 이 자료에 포함하지 않는다.
 
 8. 그대로 붙여 넣을 다음 작업 프롬프트
-“첨부한 Pause_Ponder_Handoff_v0.2.zip을 풀고 HANDOFF.txt, README.md, PRODUCT_SPEC.md, MIGRATION.md, TEST_REPORT.md를 먼저 읽어 주세요. 앱 이름은 Pause&Ponder이며 첫 화면은 생각함입니다. 충동구매와 돈/감정 기록이 우선입니다. Next.js + Vercel + Supabase 구조와 원문 보존, 일반 계산/AI 추출 분리 결정을 유지하세요. 현재 실제 운영 연결은 미완료입니다. 먼저 기존 Supabase/Vercel 프로젝트 여부와 환경 설정을 확인하고, 데이터가 있는 DB를 초기화하지 마세요. npm ci, npm test, npm run build를 수행하고 실제 Supabase에서 SQL/RLS/Auth/Realtime를 확인한 뒤 같은 계정의 두 기기로 지출 저장 및 일정 동기화를 검증해 주세요. 이어서 오프라인 초안/내보내기와 감정 타임라인·충동구매 보류함을 구현하세요. 새 메모 입력을 실제 구매와 구매 욕구로 구분하고 예정 결제는 지출에 합산하지 마세요. 파일만으로 기존 계정 권한이 이전됐다고 가정하지 마세요.”
+“첨부한 Pause_Ponder_Handoff_v0.3.zip을 풀고 HANDOFF.txt, README.md, PRODUCT_SPEC.md, MIGRATION.md, TEST_REPORT.md를 먼저 읽어 주세요. 앱 이름은 Pause&Ponder이며 첫 화면은 생각함입니다. 충동구매와 돈/감정 기록이 우선입니다. Next.js + Vercel + Supabase 구조와 원문 보존, 일반 계산/AI 추출 분리 결정을 유지하세요. 기존 웹 운영 연결은 사용자 확인 완료이며 이번 루틴 업데이트는 아직 미반영입니다. 먼저 기존 Supabase/Vercel 프로젝트 여부와 환경 설정을 확인하고, 데이터가 있는 DB를 초기화하지 마세요. npm ci, npm test, npm run build를 수행하고 실제 Supabase에서 SQL/RLS/Auth/Realtime를 확인한 뒤 같은 계정의 두 기기로 지출 저장 및 일정 동기화를 검증해 주세요. 이어서 오프라인 초안/내보내기와 감정 타임라인·충동구매 보류함을 구현하세요. 새 메모 입력을 실제 구매와 구매 욕구로 구분하고 예정 결제는 지출에 합산하지 마세요. 파일만으로 기존 계정 권한이 이전됐다고 가정하지 마세요.”
 
 9. 검증 요약
-로컬 자동 테스트 9개 통과. AI 요청은 모의 응답으로 검증했다. 규칙/금액/한국 날짜/월 범위/카드 상환 분리/말일 일정, PostgreSQL 엔진에서 SQL/사용자 분리/RPC 권한/원자 저장/재시도/예정 완료 및 취소 검증.
-운영 Supabase, Realtime WebSocket, 이메일 전송, 두 기기, Safari/Chrome/Android/Fold 실기기와 접근성 상호작용은 미검증. 자세한 한계는 TEST_REPORT.md.
+웹 자동 테스트 12개 통과. AI 요청은 모의 응답으로 검증했다. 규칙/금액/한국 날짜/월 범위/카드 상환 분리/말일 일정, PostgreSQL 엔진에서 SQL/사용자 분리/RPC 권한/원자 저장/재시도/예정 완료 및 취소 검증.
+이번 추가 기능의 운영 Supabase, Realtime WebSocket, 이메일 전송, 두 기기, Safari/Chrome/Android/Fold 실기기와 접근성 상호작용은 미검증. 자세한 한계는 TEST_REPORT.md.
 
 10. v0.2.1 운영 반영
 파일명은 기존 전달 파일을 유지하고 내용 버전만 0.2.1로 갱신했다. 기존 SQL 구조는 변경하지 않았다. 운영 DB를 초기화하거나 schema.sql을 재실행하지 않는다. 변경 소스를 기존 Git 저장소에 반영하고 Vercel 서버 환경변수에 OPENAI_API_KEY와 OPENAI_MODEL을 설정한 뒤 재배포한다. 키는 NEXT_PUBLIC에 넣지 않는다. AI 실제 호출/사용량을 확인한 뒤 완료라고 설명한다.
+
+11. v0.3 루틴과 Android
+- 웹: 메인 오늘의 루틴, 이름/시간/반복 요일/기간/알림 등록·수정·중단, 완료/10분 미룸/건너뜀/되돌리기, 날짜별 기록. 한국 시간 고정.
+- Android: android/ Java 네이티브 동반 앱. 같은 이메일·비밀번호 Auth 로그인, 암호화 세션/루틴 캐시/오프라인 입력 보관. 예약 알림, 생각함/루틴 홈 위젯. 위젯 텍스트 입력은 작은 앱 창에서 한다.
+- API: /api/client-config 는 Supabase 공개 키만 제공. OpenAI 키는 Vercel 서버에만 유지. /api/routines 는 Bearer 인증. 기존 /api/data 로 메모 분류·금전 저장.
+- DB: 기존 프로젝트에서 supabase/migrations/003_routines.sql만 추가 실행. routines, routine_logs, routine_actions; RLS, 중복 요청 방지, 낙관적 충돌 검사.
+- 데이터 흐름: 웹/Android가 열려 있으면 Supabase Realtime 변경 후 재조회. Android 백그라운드는 WorkManager 최소 15분 주기이며 OS가 지연할 수 있다. 앱 종료 상태의 즉시 서버 동기화는 보장하지 않는다.
+- 알림: Android 권한 필요. 정확한 알림 권한이 없으면 지연 가능. 제조사 절전·강제 중지·기기 종료에 따라 누락 가능. 진료/복약 판단을 대신하는 기능이 아니다. 웹 알림은 지원 브라우저에서 페이지가 열려 있을 때만.
+- 오프라인 메모는 암호화 저장 후 재시도. 같은 요청 UUID로 중복 저장을 막는다. 서버 검증 거부/다른 기기 충돌은 기기에 남겨 확인 후 삭제/재입력. 같은 루틴의 미전송 작업이 있으면 추가 상태 변경을 막는다.
+- 운영 적용 순서와 Android 빌드/설치는 ROUTINES_ANDROID_UPDATE.txt. 계정·플랫폼 이동 시 이 파일도 반드시 전달.
+
+12. 최종 빌드 검증
+웹 자동 테스트 12개 및 Next.js/TypeScript 빌드 통과. Android JVM 시간/요일 테스트 2개 및 debug APK 빌드 통과. Pause_Ponder_Android_v0.3_debug.apk는 개인 테스트 설치용. 실제 휴대폰 알림/위젯 검증과 운영 SQL 적용·재배포는 남아 있다. 전체 최신 소스 패키지는 Pause_Ponder_Handoff_v0.3.zip.

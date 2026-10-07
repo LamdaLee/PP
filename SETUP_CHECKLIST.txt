@@ -1,35 +1,12 @@
-Pause&Ponder — 지금 준비할 것
+Pause&Ponder v0.3 업데이트 체크리스트
 
-사용자가 Supabase 프로젝트를 시작한 상태 / 2026-10-07
+[완료: 사용자 확인] 기존 Vercel/Supabase 웹과 AI 동작
+[ ] 추가 SQL 003_routines.sql을 기존 Supabase SQL Editor에서 실행
+[ ] 새 소스를 기존 Git 저장소에 반영하고 Vercel 재배포
+[ ] 같은 계정으로 웹 로그인 후 루틴 등록/완료/미룸/날짜 기록 확인
+[ ] Android 동반 앱 빌드 또는 제공 APK 설치
+[ ] 같은 계정 로그인, 알림 권한과 정확한 시각 알림 설정
+[ ] 생각함/루틴 위젯 추가
+[ ] 앱 닫기·재부팅·오프라인·다른 기기 변경 실기기 확인
 
-지금 준비
-[ ] Supabase 프로젝트가 준비 완료 상태인지 확인
-[ ] 프로젝트 URL과 publishable key의 위치 확인
-[ ] Vercel 계정 준비
-[ ] 코드 보관용 사용자 소유 Git 저장소 준비
-[ ] 월급일/예상 금액, 카드 결제일/예정 청구액, 대출 납부일/예정 금액 메모
-
-파일을 받은 후
-[ ] ZIP을 풀고 README.md 읽기
-[ ] 이미 실행한 관련 SQL이 있는지 확인. 새 빈 프로젝트라면 supabase/schema.sql을 SQL Editor에서 한번 실행
-[ ] 로컬 테스트라면 .env.example을 .env.local로 복사하고 두 변수 설정
-[ ] npm ci / npm test / npm run build 실행
-[ ] Git에 소스와 lock 파일 저장(.env.local은 제외)
-[ ] Vercel에서 저장소 Import, Framework Next.js, 두 환경변수 설정, 배포
-[ ] Supabase Auth의 Site URL을 실제 Vercel 주소로 설정하고 필요한 Redirect URL 등록
-[ ] 이메일 가입/인증/로그인 확인
-[ ] Supabase Realtime publication에 memos, entries, schedules, settlements 확인
-[ ] 스마트폰과 컴퓨터에서 동일 앱 계정으로 로그인
-[ ] '21000원 우산 구매'를 한 기기에서 저장 → 다른 기기에 한 건의 −21,000원 확인
-[ ] '21000원 우산 사고 싶다'는 지출 합계가 늘어나지 않는지 확인
-[ ] 월급·카드·대출 일정 등록 → 메인 표시 → 실제 완료 시 합계 반영 확인
-
-프로젝트 URL/키의 실제 값은 이 문서에 포함하지 않는다. 운영 설정은 해당 플랫폼 환경변수에 직접 넣는다. 같은 Supabase 프로젝트와 같은 앱 Auth 계정을 유지하면 다른 개발 계정/플랫폼에서 이어갈 수 있다. 별도 새 앱 가입은 다른 사용자로 취급된다.
-
-AI 연결(선택)
-[ ] AI_SETUP.txt 읽기
-[ ] OpenAI 플랫폼에서 API 키 생성 및 API 사용 가능/결제 상태 확인
-[ ] Vercel 서버 환경변수 OPENAI_API_KEY, OPENAI_MODEL=gpt-5-mini 추가
-[ ] 기존 코드에 최신 소스 변경 반영 후 재배포(기존 DB SQL 재실행 불필요)
-[ ] AI로 정리하고 저장했다는 문구 및 모호한 금액 후보 확인
-[ ] 제공자 사용량 확인. 이 앱에 강제 일일 호출 상한은 아직 없음
+상세 절차 ROUTINES_ANDROID_UPDATE.txt. 기존 DB에서는 schema.sql을 재실행하지 않습니다. 새 빈 DB만 schema.sql 후 003_routines.sql 순서로 설치합니다. 실제 키는 Vercel 또는 .env.local에만 넣고 Git/전달 자료에 포함하지 않습니다.

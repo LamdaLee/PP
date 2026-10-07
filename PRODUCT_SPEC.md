@@ -61,3 +61,8 @@
 8. 연결 복구·화면 복귀 시 최신 DB를 다시 읽는다.
 9. 계정/플랫폼을 바꿔도 환경변수·DB·앱 사용자 ID가 유지되면 데이터가 이어진다.
 10. 운영 데이터 없이 시작하는 전달 ZIP에 비밀키가 포함되지 않는다.
+
+
+## v0.3 루틴·Android 추가
+
+기존 운영 앱 위에 루틴과 Android 동반 앱을 추가했습니다. 운영 DB는 `supabase/migrations/003_routines.sql`만 추가 실행합니다. `schema.sql`을 재실행하지 마세요. 상세 실행·업데이트·알림·동기화 한계는 `ROUTINES_ANDROID_UPDATE.txt`, Android 소스는 `android/`입니다.
