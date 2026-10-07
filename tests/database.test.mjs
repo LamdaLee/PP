@@ -159,6 +159,26 @@ test("실제 PostgreSQL SQL: RLS, 원자 저장, 재시도, 상환 완료와 취
       (await db.query("select count(*)::int n from entries")).rows[0].n,
       3,
     );
+    const live = (
+      await db.query(
+        "select id from entries where voided_at is null limit 1",
+      )
+    ).rows[0].id;
+    await db.query(
+      "select revise_entry($1,'고친 기록','repayment',5000,'2026-02-28','account')",
+      [live],
+    );
+    assert.equal(
+      (await db.query("select amount::int n from entries where id=$1", [live]))
+        .rows[0].n,
+      5000,
+    );
+    await db.query("select end_schedule($1)", [sid]);
+    assert.equal(
+      (await db.query("select active from schedules where id=$1", [sid]))
+        .rows[0].active,
+      false,
+    );
     await db.exec("reset role;set role anon;");
     await assert.rejects(db.query("select * from entries"));
     await assert.rejects(

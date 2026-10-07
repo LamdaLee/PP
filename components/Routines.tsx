@@ -108,7 +108,7 @@ export function useRoutines(userId: string | null) {
       if (sent.current.has(key)) continue;
       try {
         if (sessionStorage.getItem(key)) continue;
-        new Notification("Pause&Ponder · 루틴 시간이에요", {
+        new Notification("Pause&Ponder · 반복할 시간이에요", {
           body: item.title,
           tag: key,
         });
@@ -238,7 +238,7 @@ export function RoutineToday({
   return (
     <section className="card">
       <div className="section-title">
-        <h2>오늘의 루틴</h2>
+        <h2>반복해서 할 일</h2>
         <small>{c.today} · 한국 시간</small>
       </div>
       {c.error && (
