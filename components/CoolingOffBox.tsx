@@ -47,7 +47,11 @@ export function CoolingOffBox({
 }: {
   items: CoolingItem[];
   onSave: (item: CoolingItem) => Promise<boolean>;
-  onConvertToExpense: (item: { title: string; amount: number }) => Promise<void>;
+  onConvertToExpense: (item: {
+    title: string;
+    amount: number;
+    method: string;
+  }) => Promise<void>;
 }) {
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
@@ -98,9 +102,9 @@ export function CoolingOffBox({
     setTimeout(() => setMessage(""), 5000);
   };
 
-  const handleConfirmPurchase = async (item: CoolingItem) => {
-    if (!item.amount) return;
-    await onConvertToExpense({ title: item.title, amount: item.amount });
+  const handleConfirmPurchase = async (item: CoolingItem, method: string) => {
+    if (!item.amount || !method) return;
+    await onConvertToExpense({ title: item.title, amount: item.amount, method });
     if (!(await onSave({ ...item, status: "purchased" }))) return;
     setMessage(`${item.title}을(를) 가계부 소비로 적었어요.`);
     setTimeout(() => setMessage(""), 4000);
@@ -229,13 +233,26 @@ export function CoolingOffBox({
                       안 사기
                     </button>
                     {item.amount ? (
-                      <button
-                        type="button"
-                        className="text-button"
-                        onClick={() => handleConfirmPurchase(item)}
+                      <form
+                        onSubmit={async (event) => {
+                          event.preventDefault();
+                          const method = String(
+                            new FormData(event.currentTarget).get("method") || "",
+                          );
+                          await handleConfirmPurchase(item, method);
+                        }}
                       >
-                        가계부에 적기
-                      </button>
+                        <select name="method" required defaultValue="">
+                          <option value="" disabled>
+                            결제 수단
+                          </option>
+                          <option value="credit">카드</option>
+                          <option value="cash">현금</option>
+                          <option value="phone">휴대폰</option>
+                          <option value="easy">간편결제</option>
+                        </select>
+                        <button type="submit">가계부에 적기</button>
+                      </form>
                     ) : (
                       <form
                         onSubmit={async (event) => {

@@ -261,6 +261,13 @@ export async function POST(req: Request) {
         p_fragments: fragments,
       });
     } else if (body.action === "entry") {
+      if (
+        body.method &&
+        !["cash", "debit", "credit", "account", "phone", "easy"].includes(
+          body.method,
+        )
+      )
+        throw new ApiError("결제 수단을 확인해 주세요.");
       result = await db.rpc("save_entry", {
         p_request_id: body.requestId,
         p_title: body.title,
@@ -275,6 +282,13 @@ export async function POST(req: Request) {
       result = await db.rpc("void_entry", { p_id: body.id });
     } else if (body.action === "entry-revise") {
       if (!UUID.test(body.id)) throw new ApiError("기록을 확인해 주세요.");
+      if (
+        body.method &&
+        !["cash", "debit", "credit", "account", "phone", "easy"].includes(
+          body.method,
+        )
+      )
+        throw new ApiError("결제 수단을 확인해 주세요.");
       result = await db.rpc("revise_entry", {
         p_id: body.id,
         p_title: body.title,

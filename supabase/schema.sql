@@ -10,7 +10,7 @@ create table public.entries (
  request_id uuid not null, title text not null check(length(title) between 1 and 500),
  kind text not null check(kind in ('income','expense','refund','repayment','transfer')),
  amount bigint not null check(amount>0 and amount<=1000000000000), occurred_on date not null,
- payment_method text not null default 'cash' check(payment_method in ('cash','debit','credit','account')),
+ payment_method text not null default 'cash' check(payment_method in ('cash','debit','credit','account','phone','easy')),
  memo_id uuid, fragment_id text, voided_at timestamptz,
  created_at timestamptz not null default now(), unique(user_id,request_id), unique(memo_id,fragment_id), unique(user_id,id), foreign key(user_id,memo_id) references public.memos(user_id,id),
  check((memo_id is null)=(fragment_id is null))

@@ -92,11 +92,11 @@ export function EntryForm({
         </label>
         <label>
           결제 수단
-          <select name="method">
+          <select name="method" defaultValue="cash" required>
+            <option value="credit">카드</option>
             <option value="cash">현금</option>
-            <option value="debit">체크카드</option>
-            <option value="credit">신용카드</option>
-            <option value="account">계좌</option>
+            <option value="phone">휴대폰</option>
+            <option value="easy">간편결제</option>
           </select>
         </label>
       </div>
