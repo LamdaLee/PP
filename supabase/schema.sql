@@ -116,6 +116,31 @@ revoke all on function public.save_schedule(uuid,text,text,bigint,text,int,date,
 grant execute on function public.save_schedule(uuid,text,text,bigint,text,int,date,date) to authenticated;
 revoke all on function public.save_memo(uuid,text,jsonb),public.save_entry(uuid,text,text,bigint,date,text,uuid,text),public.void_entry(uuid),public.settle_schedule(uuid,date,date,uuid) from public,anon;
 grant execute on function public.save_memo(uuid,text,jsonb),public.save_entry(uuid,text,text,bigint,date,text,uuid,text),public.void_entry(uuid),public.settle_schedule(uuid,date,date,uuid) to authenticated;
+create or replace function public.ledger_totals(p_start date, p_end date)
+returns jsonb
+language plpgsql stable security invoker set search_path=public,pg_temp as $$
+declare result jsonb;
+begin
+ if auth.uid() is null then raise exception '로그인이 필요합니다'; end if;
+ if p_start is null or p_end is null or p_end < p_start then
+   raise exception '조회 기간을 확인해 주세요';
+ end if;
+ select jsonb_build_object(
+   'income', coalesce(sum(amount) filter (where kind='income'),0),
+   'expense', coalesce(sum(amount) filter (where kind='expense'),0),
+   'refund', coalesce(sum(amount) filter (where kind='refund'),0),
+   'repayment', coalesce(sum(amount) filter (where kind='repayment'),0),
+   'transfer', coalesce(sum(amount) filter (where kind='transfer'),0),
+   'count', count(*)::int
+ ) into result
+ from entries
+ where user_id=auth.uid() and voided_at is null and occurred_on between p_start and p_end;
+ return result || jsonb_build_object(
+   'net', (result->>'income')::bigint + (result->>'refund')::bigint - (result->>'expense')::bigint
+ );
+end $$;
+revoke all on function public.ledger_totals(date,date) from public,anon;
+grant execute on function public.ledger_totals(date,date) to authenticated;
 -- Add only these tables to Realtime. Preserve any other project's publication tables.
 do $$declare t text;begin foreach t in array array['memos','entries','schedules','settlements'] loop
  if not exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename=t) then execute format('alter publication supabase_realtime add table public.%I',t);end if;

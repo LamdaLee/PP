@@ -59,6 +59,15 @@ test("실제 PostgreSQL SQL: RLS, 원자 저장, 재시도, 상환 완료와 취
       (await db.query("select count(*)::int n from memos")).rows[0].n,
       1,
     );
+    const beforeVoid = (
+      await db.query(
+        "select ledger_totals('2026-10-01'::date,'2026-10-31'::date) t",
+      )
+    ).rows[0].t;
+    const parsed =
+      typeof beforeVoid === "string" ? JSON.parse(beforeVoid) : beforeVoid;
+    assert.equal(Number(parsed.expense), 21000);
+    assert.equal(Number(parsed.net), -21000);
     const ownedEntry = (await db.query("select id from entries")).rows[0].id;
     await db.exec(
       `select set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb',false)`,

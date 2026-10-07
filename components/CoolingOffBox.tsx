@@ -14,23 +14,41 @@ export interface CoolingItem {
   status: "cooling" | "saved" | "purchased";
 }
 
-const STORAGE_KEY = "pp_cooling_off_items";
 const won = (n: number) => new Intl.NumberFormat("ko-KR").format(n) + "원";
 
+export function coolingFromRow(row: {
+  id: string;
+  title: string;
+  amount: number;
+  reason: string | null;
+  emotion: string;
+  cool_down_hours: number;
+  created_at: string;
+  expires_at: string;
+  status: CoolingItem["status"];
+}): CoolingItem {
+  return {
+    id: row.id,
+    title: row.title,
+    amount: Number(row.amount),
+    reason: row.reason || "",
+    emotion: row.emotion,
+    coolDownHours: row.cool_down_hours,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    status: row.status,
+  };
+}
+
 export function CoolingOffBox({
+  items,
+  onSave,
   onConvertToExpense,
 }: {
+  items: CoolingItem[];
+  onSave: (item: CoolingItem) => Promise<boolean>;
   onConvertToExpense: (item: { title: string; amount: number }) => Promise<void>;
 }) {
-  const [items, setItems] = useState<CoolingItem[]>([]);
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) setItems(JSON.parse(saved));
-    } catch {}
-  }, []);
-
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
   const [emotion, setEmotion] = useState("스트레스 해소");
@@ -44,20 +62,12 @@ export function CoolingOffBox({
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-    } catch {}
-  }, [items]);
-
-  const handleAdd = (e: React.FormEvent) => {
+  const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     const numAmount = Number(amount);
     if (!title.trim() || !numAmount || numAmount <= 0) return;
-
     const createTime = new Date();
     const expireTime = new Date(createTime.getTime() + hours * 60 * 60 * 1000);
-
     const newItem: CoolingItem = {
       id: crypto.randomUUID(),
       title: title.trim(),
@@ -69,28 +79,23 @@ export function CoolingOffBox({
       expiresAt: expireTime.toISOString(),
       status: "cooling",
     };
-
-    setItems((prev) => [newItem, ...prev]);
+    if (!(await onSave(newItem))) return;
     setTitle("");
     setAmount("");
     setReason("");
-    setMessage("충동구매 보류함에 담았어요. 24시간 동안 잠시 마음을 식혀보아요.");
+    setMessage("충동구매 보류함에 담았어요. 다른 기기에도 같이 보여요.");
     setTimeout(() => setMessage(""), 4000);
   };
 
-  const handleCancelAndSave = (id: string, savedAmount: number) => {
-    setItems((prev) =>
-      prev.map((it) => (it.id === id ? { ...it, status: "saved" } : it))
-    );
-    setMessage(`충동을 멋지게 이겨내셨어요! ${won(savedAmount)}을 지켰습니다.`);
+  const handleCancelAndSave = async (item: CoolingItem) => {
+    if (!(await onSave({ ...item, status: "saved" }))) return;
+    setMessage(`충동을 멋지게 이겨내셨어요! ${won(item.amount)}을 지켰습니다.`);
     setTimeout(() => setMessage(""), 5000);
   };
 
   const handleConfirmPurchase = async (item: CoolingItem) => {
     await onConvertToExpense({ title: item.title, amount: item.amount });
-    setItems((prev) =>
-      prev.map((it) => (it.id === item.id ? { ...it, status: "purchased" } : it))
-    );
+    if (!(await onSave({ ...item, status: "purchased" }))) return;
     setMessage(`${item.title}을(를) 정식 가계부 지출로 기록했습니다.`);
     setTimeout(() => setMessage(""), 4000);
   };
@@ -210,7 +215,7 @@ export function CoolingOffBox({
                   <div style={{ display: "flex", gap: "8px" }}>
                     <button
                       type="button"
-                      onClick={() => handleCancelAndSave(item.id, item.amount)}
+                      onClick={() => handleCancelAndSave(item)}
                     >
                       충동 극복 (절약 성공!)
                     </button>
