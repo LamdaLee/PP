@@ -137,6 +137,28 @@ test("실제 PostgreSQL SQL: RLS, 원자 저장, 재시도, 상환 완료와 취
       0,
     );
     await settle("77777777-7777-4777-8777-777777777777");
+    const edited = JSON.stringify(
+      extractMemo("오늘은 그냥 창밖을 봤어", "2026-10-07"),
+    );
+    const memoId = (await db.query("select id from memos")).rows[0].id;
+    await db.query("select update_memo($1,$2,$3::jsonb)", [
+      memoId,
+      "오늘은 그냥 창밖을 봤어",
+      edited,
+    ]);
+    assert.equal(
+      (await db.query("select body from memos")).rows[0].body,
+      "오늘은 그냥 창밖을 봤어",
+    );
+    await db.query("select delete_memo($1)", [memoId]);
+    assert.equal(
+      (await db.query("select count(*)::int n from memos")).rows[0].n,
+      0,
+    );
+    assert.equal(
+      (await db.query("select count(*)::int n from entries")).rows[0].n,
+      3,
+    );
     await db.exec("reset role;set role anon;");
     await assert.rejects(db.query("select * from entries"));
     await assert.rejects(

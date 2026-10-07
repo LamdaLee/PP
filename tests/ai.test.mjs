@@ -71,6 +71,22 @@ test("Responses 요청과 검증, 실패시 기본 분류 보존", async () => {
       };
     },
   });
+  const wished = mergeCandidates(
+    extractMemo("새 가방이 눈에 밟혀", "2026-10-07"),
+    [
+      {
+        id: "f0",
+        categories: ["purchase"],
+        amount: null,
+        kind: null,
+        intent: "buy",
+        item: "가방",
+      },
+    ],
+  );
+  assert.equal(wished[0].intent, "buy");
+  assert.equal(wished[0].item, "가방");
+  assert.deepEqual(wished[0].categories, ["purchase"]);
   assert.equal(r.aiMode, "applied");
   assert.equal(request.store, false);
   assert.equal(request.text.format.strict, true);

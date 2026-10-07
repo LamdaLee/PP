@@ -29,11 +29,11 @@ const blank: Data = {
   memosTruncated: false,
 };
 const labels: Record<string, string> = {
-  money: "돈",
-  purchase: "구매",
-  thought: "생각",
-  emotion: "감정",
-  work: "일",
+  money: "씀씀이",
+  purchase: "갖고 싶음",
+  thought: "그대로",
+  emotion: "기분",
+  work: "할 일",
   breathe: "숨고르기",
   income: "수입",
   expense: "지출",
@@ -62,7 +62,9 @@ export default function Dashboard() {
     [recovery, setRecovery] = useState(false),
     [cooling, setCooling] = useState<CoolingItem[]>([]),
     [draftReady, setDraftReady] = useState(false),
-    [pieceFilter, setPieceFilter] = useState("all");
+    [pieceFilter, setPieceFilter] = useState("all"),
+    [editingId, setEditingId] = useState<string | null>(null),
+    [editText, setEditText] = useState("");
 
   const [month, setMonth] = useState(() => koreaDate().slice(0, 7)),
     [range, setRange] = useState(() => monthRange(koreaDate().slice(0, 7))),
@@ -339,12 +341,28 @@ export default function Dashboard() {
       if (buys.length) setPage("cooling");
       else if (fragments.some((f) => f.intent === "eat")) setPage("money");
       const pending = fragments.filter((f) => f.status === "pending").length;
-      if (buys.length) return "사고 싶은 물건을 보류함으로 옮겼어요.";
+      if (buys.length) return "사고 싶은 건 잠깐 두기로 옮겼어요.";
       if (fragments.some((f) => f.intent === "eat"))
-        return "먹고 싶은 것을 구매 쪽으로 연결했어요. 지출에는 넣지 않았어요.";
-      return pending
-        ? `저장 완료 · 확인이 필요한 항목이 ${pending}개 있습니다.`
-        : "생각함에 남겼습니다.";
+        return "먹고 싶은 건 갖고 싶음으로만 연결했어요. 씀씀이에는 넣지 않았어요.";
+      if (pending)
+        return "금액은 바로 넣지 않고, 씀씀이에서 한번 더 볼게요.";
+    });
+  }
+
+  async function updateMemo(id: string) {
+    const body = editText.trim();
+    if (!body) return;
+    const ok = await action(async () => {
+      await send({ action: "memo-update", id, text: body });
+    });
+    if (ok) setEditingId(null);
+  }
+
+  async function removeMemo(id: string) {
+    if (!window.confirm("이 메모를 지울까요? 이미 씀씀이에 넣은 금액은 그대로 남아요."))
+      return;
+    await action(async () => {
+      await send({ action: "memo-delete", id });
     });
   }
 
@@ -359,13 +377,13 @@ export default function Dashboard() {
     .sort((a, b) => a.due_date.localeCompare(b.due_date));
 
   const nav: [string, string][] = [
-    ["inbox", "생각함"],
-    ["pieces", "파편"],
-    ["cooling", "충동 보류함"],
-    ["money", "돈"],
+    ["inbox", "마음함"],
+    ["pieces", "조각"],
+    ["cooling", "잠깐 두기"],
+    ["money", "씀씀이"],
     ["routine", "루틴"],
-    ["work", "일"],
-    ["emotion", "감정"],
+    ["work", "할 일"],
+    ["emotion", "기분"],
     ["breathe", "숨고르기"],
   ];
 
@@ -398,7 +416,7 @@ export default function Dashboard() {
       <div className="auth">
         <Brand />
         <h1>잠시 멈추고, 온전히 바라보기</h1>
-        <p>복잡하게 적지 않아도 괜찮아요. 돈, 감정, 일의 실마리를 풀어둡니다.</p>
+        <p>복잡하게 적지 않아도 괜찮아요. 마음함에 두면 씀씀이, 기분, 할 일로 이어집니다.</p>
         <Auth />
       </div>
     );
@@ -431,7 +449,7 @@ export default function Dashboard() {
             className="text-button"
             onClick={() => setPage("cooling")}
           >
-            보류함으로 이동
+            잠깐 두기로
           </button>
         )}
         {fragment.status === "pending" && (
@@ -440,7 +458,7 @@ export default function Dashboard() {
             className="text-button"
             onClick={() => setCandidate({ memo, fragment })}
           >
-            확인하고 가계부에 넣기
+            확인하고 씀씀이에 넣기
           </button>
         )}
       </div>
@@ -459,15 +477,66 @@ export default function Dashboard() {
           const pieces = m.fragments || [];
           const repeated =
             pieces.length === 1 && pieces[0].text.trim() === m.body.trim();
+          const editing = editingId === m.id;
           return (
             <div key={m.id} className="card">
               <time>{m.created_at.slice(0, 10)}</time>
-              <p className="original">{m.body}</p>
-              <div>
-                {pieces.map((f) =>
-                  fragmentNotes(m, f, !repeated),
-                )}
-              </div>
+              {editing ? (
+                <>
+                  <label className="sr-only" htmlFor={`edit-${m.id}`}>
+                    메모 고치기
+                  </label>
+                  <textarea
+                    id={`edit-${m.id}`}
+                    value={editText}
+                    maxLength={10000}
+                    onChange={(e) => setEditText(e.target.value)}
+                  />
+                  <div className="memo-actions">
+                    <button
+                      type="button"
+                      disabled={busy || !editText.trim()}
+                      onClick={() => void updateMemo(m.id)}
+                    >
+                      저장
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => setEditingId(null)}
+                    >
+                      취소
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="original">{m.body}</p>
+                  <div>
+                    {pieces.map((f) => fragmentNotes(m, f, !repeated))}
+                  </div>
+                  <div className="memo-actions">
+                    <button
+                      type="button"
+                      className="text-button"
+                      onClick={() => {
+                        setEditingId(m.id);
+                        setEditText(m.body);
+                      }}
+                    >
+                      고치기
+                    </button>
+                    <button
+                      type="button"
+                      className="text-button"
+                      disabled={busy}
+                      onClick={() => void removeMemo(m.id)}
+                    >
+                      지우기
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           );
         })}
@@ -600,7 +669,7 @@ export default function Dashboard() {
           <>
             <section className="card capture">
               <h2>지금 떠오르는 것을 놓아두세요.</h2>
-              <p>정리하지 않아도 괜찮아요. 돈, 감정, 일로 연결해 둘게요.</p>
+              <p>정리하지 않아도 괜찮아요. 마음함에 맞게 나눠 둘게요.</p>
               <label className="sr-only" htmlFor="dump">
                 생각 메모
               </label>
@@ -639,7 +708,7 @@ export default function Dashboard() {
                   className="text-button"
                   onClick={() => setPage("money")}
                 >
-                  돈 살펴보기 →
+                  씀씀이 살펴보기 →
                 </button>
               </div>
               {dueCards}
@@ -650,7 +719,7 @@ export default function Dashboard() {
               루틴 등록·관리 →
             </button>
 
-            <h2 className="section-heading">내려놓은 생각들</h2>
+            <h2 className="section-heading">마음함에 둔 말</h2>
             {data.memosTruncated && (
               <p className="hint">오래된 메모 일부는 아직 이 화면에 없어요.</p>
             )}
@@ -666,12 +735,12 @@ export default function Dashboard() {
               {(
                 [
                   ["all", "전체"],
-                  ["purchase", "구매"],
-                  ["money", "돈"],
-                  ["emotion", "감정"],
-                  ["work", "일"],
+                  ["purchase", "갖고 싶음"],
+                  ["money", "씀씀이"],
+                  ["emotion", "기분"],
+                  ["work", "할 일"],
                   ["breathe", "숨고르기"],
-                  ["thought", "생각"],
+                  ["thought", "그대로"],
                 ] as const
               ).map(([id, name]) => (
                 <button
@@ -841,9 +910,9 @@ export default function Dashboard() {
               )}
             </section>
 
-            <h2 className="section-heading">구매로 연결된 메모</h2>
+            <h2 className="section-heading">갖고 싶음으로 연결된 메모</h2>
             <p className="hint">
-              먹고 싶다, 사고 싶다는 지출로 합산하지 않아요. 사고 싶다는 보류함으로
+              먹고 싶다, 사고 싶다는 씀씀이에 넣지 않아요. 사고 싶다는 잠깐 두기로
               옮겨요.
             </p>
             {memoCards("purchase")}
@@ -913,7 +982,7 @@ export default function Dashboard() {
               }
             />
 
-            <h2 className="section-heading">돈과 연결된 메모</h2>
+            <h2 className="section-heading">씀씀이와 연결된 메모</h2>
             {memoCards("money")}
           </>
         )}
@@ -924,8 +993,7 @@ export default function Dashboard() {
             <section className="card butter">
               <h2>지금은 한 가지씩</h2>
               <p>
-                업무 메모를 한곳에서 살펴보세요. 실행 순서·체크리스트 기능은
-                다음 개발 단계에 연결할 수 있어요.
+                할 일로 적어 둔 말을 여기서 다시 볼 수 있어요.
               </p>
             </section>
             {memoCards("work")}
@@ -938,8 +1006,7 @@ export default function Dashboard() {
             <section className="card apricot">
               <h2>오늘 마음은 어땠나요?</h2>
               <p>
-                생각함에 감정과 사건을 적으면 날짜별 원본 기록과 함께 이곳에서
-                볼 수 있어요.
+                마음함에 기분을 적으면 날짜와 함께 이곳에서 다시 볼 수 있어요.
               </p>
               <button onClick={() => setPage("inbox")}>
                 마음 기록하러 가기
@@ -956,7 +1023,7 @@ export default function Dashboard() {
               <img src="/symbol.png" alt="" />
               <h2>지금 당장 결정하지 않아도 돼요.</h2>
               <p>
-                숨을 편하게 쉬고, 사고 싶은 이유와 지금 느끼는 감정을 생각함에
+                숨을 편하게 쉬고, 사고 싶은 이유와 지금 느끼는 기분을 마음함에
                 남겨보세요.
               </p>
               <button onClick={() => setBreathing(true)}>잠깐 숨고르기</button>
