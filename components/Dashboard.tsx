@@ -15,7 +15,10 @@ import {
   monthRange,
   sumLedger,
   scheduleOccurrences,
+  expenseOnDate,
 } from "@/lib/finance.mjs";
+import { browserDraftStorage, readMemoDraft, writeMemoDraft } from "@/lib/drafts.mjs";
+import { Modal } from "./Modal";
 import type { Data, Fragment, Memo } from "@/lib/types";
 
 const blank: Data = {
@@ -63,7 +66,8 @@ export default function Dashboard() {
     [breathing, setBreathing] = useState(false),
     [recovery, setRecovery] = useState(false),
     [cooling, setCooling] = useState<CoolingItem[]>([]),
-    [draftReady, setDraftReady] = useState(false),
+    [draftUser, setDraftUser] = useState<string | null>(null),
+    [draftWarning, setDraftWarning] = useState(""),
     [pieceFilter, setPieceFilter] = useState("all"),
     [heart, setHeart] = useState<"write" | "pieces" | "emotion">("write"),
     [memoQuery, setMemoQuery] = useState(""),
@@ -91,6 +95,7 @@ export default function Dashboard() {
     } | null>(null);
 
   const memoRequest = useRef({ text: "", id: "" });
+  const actionBusy = useRef(false);
   const coolingMoved = useRef(false);
   const currentUser = useRef<string | null>(null);
   const reloadCount = useRef(0);
@@ -99,17 +104,35 @@ export default function Dashboard() {
     !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
     !!process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-  // Auto-save web draft to localStorage
+  // Persist the request ID too: a lost response followed by a reload stays one save.
   useEffect(() => {
-    const saved = localStorage.getItem("pp_draft_text");
-    if (saved) setText(saved);
-    setDraftReady(true);
-  }, []);
+    const user = session?.user.id || null;
+    if (!user) {
+      setDraftUser(null);
+      setText("");
+      memoRequest.current = { text: "", id: "" };
+      return;
+    }
+    const storage = browserDraftStorage();
+    let saved = readMemoDraft(storage, user);
+    // Preserve the previous single-user draft during this format upgrade.
+    try {
+      const legacy = storage?.getItem("pp_draft_text");
+      if (!saved.text && legacy) {
+        saved = { text: legacy, requestId: "" };
+        if (writeMemoDraft(storage, user, legacy)) storage?.removeItem("pp_draft_text");
+      }
+    } catch { /* Draft persistence failure is surfaced below. */ }
+    setText(saved.text);
+    memoRequest.current = { text: saved.text.trim(), id: saved.requestId };
+    setDraftUser(user);
+  }, [session?.user.id]);
   useEffect(() => {
-    if (!draftReady) return;
-    if (text) localStorage.setItem("pp_draft_text", text);
-    else localStorage.removeItem("pp_draft_text");
-  }, [text, draftReady]);
+    if (!draftUser || draftUser !== session?.user.id) return;
+    if (memoRequest.current.text !== text.trim()) memoRequest.current = { text: text.trim(), id: "" };
+    const stored = writeMemoDraft(browserDraftStorage(), draftUser, text, memoRequest.current.id);
+    setDraftWarning(stored ? "" : "이 기기에 초안을 보관하지 못했어요. 화면을 닫기 전에 저장해 주세요.");
+  }, [text, draftUser, session?.user.id]);
 
   async function reload() {
     const sequence = ++reloadCount.current;
@@ -308,31 +331,41 @@ export default function Dashboard() {
   }, [session, sync, cooling]);
 
   async function action(fn: () => Promise<string | void>) {
+    if (actionBusy.current) return false;
+    actionBusy.current = true;
     setBusy(true);
     setError("");
     setNotice("");
     try {
       const message = await fn();
-      await reload();
-      if (message) setNotice(message);
+      setNotice(message || "기록했어요.");
+      try {
+        await reload();
+      } catch {
+        setSync("저장됨 · 화면 갱신 대기");
+        setNotice(`${message || "기록했어요."} 화면 갱신은 연결이 돌아오면 다시 할게요.`);
+      }
       return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "작업에 실패했습니다.");
       return false;
     } finally {
+      actionBusy.current = false;
       setBusy(false);
     }
   }
 
   async function saveMemo() {
+    if (actionBusy.current) return;
     const body = text.trim();
     if (!body) return;
-    if (data.memos.some((memo) => memo.body.trim() === body)) {
+    if (!memoRequest.current.id && data.memos.some((memo) => memo.body.trim() === body)) {
       if (!window.confirm("같은 말을 이미 마음함에 두었어요. 한번 더 둘까요?"))
         return;
     }
-    if (memoRequest.current.text !== body)
+    if (memoRequest.current.text !== body || !memoRequest.current.id)
       memoRequest.current = { text: body, id: crypto.randomUUID() };
+    if (session) writeMemoDraft(browserDraftStorage(), session.user.id, text, memoRequest.current.id);
     return action(async () => {
       const result = await send({
         action: "memo",
@@ -341,23 +374,9 @@ export default function Dashboard() {
       });
       memoRequest.current = { text: "", id: "" };
       setText("");
-      localStorage.removeItem("pp_draft_text");
+      if (session) writeMemoDraft(browserDraftStorage(), session.user.id, "");
       const fragments: Fragment[] = result.fragments || [];
-      const buys = fragments.filter((f) => f.intent === "buy");
-      for (const fragment of buys) {
-        await send({
-          action: "cooling",
-          item: {
-            id: crypto.randomUUID(),
-            title: (fragment.item || fragment.text).slice(0, 200),
-            amount: fragment.amount,
-            reason: fragment.text,
-            emotion: "충동",
-            coolDownHours: 24,
-            status: "cooling",
-          },
-        });
-      }
+      const buys = fragments.filter((f) => f.intent === "buy" && f.status !== "posted");
       if (buys.length) setPage("cooling");
       else if (fragments.some((f) => f.intent === "eat")) setPage("money");
       const pending = fragments.filter((f) => f.status === "pending").length;
@@ -369,6 +388,7 @@ export default function Dashboard() {
         return "할 일로 나눴어요.";
       }
       if (pending) return "금액은 바로 넣지 않고, 가계부에서 한번 더 볼게요.";
+      return "마음함에 저장했어요.";
     });
   }
 
@@ -513,7 +533,7 @@ export default function Dashboard() {
           const editing = editingId === m.id;
           return (
             <div key={m.id} className="card">
-              <time>{m.created_at.slice(0, 10)}</time>
+              <time>{koreaDate(new Date(m.created_at))}</time>
               {editing ? (
                 <>
                   <label className="sr-only" htmlFor={`edit-${m.id}`}>
@@ -521,6 +541,7 @@ export default function Dashboard() {
                   </label>
                   <textarea
                     id={`edit-${m.id}`}
+                    disabled={busy}
                     value={editText}
                     maxLength={10000}
                     onChange={(e) => setEditText(e.target.value)}
@@ -735,6 +756,7 @@ export default function Dashboard() {
               <textarea
                 id="dump"
                 value={text}
+                disabled={busy}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
@@ -757,6 +779,7 @@ export default function Dashboard() {
                 </button>
               </div>
             </section>
+            {draftWarning && <p className="hint" role="status">{draftWarning}</p>}
 
             <div className="grid">
               <div className="card butter">
@@ -829,7 +852,7 @@ export default function Dashboard() {
                   )
                   .map((fragment) => (
                     <div className="card" key={`${memo.id}-${fragment.id}`}>
-                      <time>{memo.created_at.slice(0, 10)}</time>
+                      <time>{koreaDate(new Date(memo.created_at))}</time>
                       {fragmentNotes(memo, fragment, true)}
                       <div className="memo-actions">
                         <button
@@ -869,18 +892,16 @@ export default function Dashboard() {
                   </p>
                 </section>
                 {memoCards("emotion", (memo) => {
-                  const day = memo.created_at.slice(0, 10);
-                  const spent = data.entries
-                    .filter(
-                      (entry) =>
-                        entry.occurred_on === day &&
-                        !entry.voided_at &&
-                        entry.kind === "expense",
-                    )
-                    .reduce((sum, entry) => sum + entry.amount, 0);
+                  const day = koreaDate(new Date(memo.created_at));
+                  const spent = expenseOnDate(data.entries, day, range, !!data.totals && !data.entriesTruncated);
                   return (
                     <p className="hint">
-                      {day} 가계부 소비 {won(spent)}
+                      {day} 가계부 소비 {spent === null ? "아직 조회하지 않았어요." : won(spent)}
+                      {spent === null && <button className="text-button" onClick={() => {
+                        setMonth(day.slice(0, 7));
+                        setRange(monthRange(day.slice(0, 7)));
+                        setPage("money");
+                      }}>해당 월 가계부 보기</button>}
                     </p>
                   );
                 })}
@@ -926,25 +947,24 @@ export default function Dashboard() {
             </section>
             <CoolingOffBox
             items={cooling}
+            busy={busy}
             onSave={async (item) =>
               !!(await action(async () => {
                 await send({ action: "cooling", item });
               }))
             }
-            onConvertToExpense={async (item) => {
-              const ok = await action(async () => {
+            onConvertToExpense={(item, method) =>
+              action(async () => {
                 await send({
-                  action: "entry",
-                  requestId: crypto.randomUUID(),
-                  title: item.title,
-                  kind: "expense",
-                  amount: item.amount,
+                  action: "cooling-purchase",
+                  id: item.id,
+                  requestId: item.id,
                   date: koreaDate(),
-                  method: item.method,
+                  method,
                 });
-              });
-              if (!ok) throw Error("가계부 기록을 저장하지 못했습니다.");
-            }}
+                return "구매를 가계부에 기록했어요.";
+              })
+            }
             />
           </>
         )}
@@ -965,7 +985,7 @@ export default function Dashboard() {
                     <div className="due" key={`${task.memo.id}-${task.fragment.id}`}>
                       <div>
                         <b>{task.fragment.text}</b>
-                        <small>{task.memo.created_at.slice(0, 10)}</small>
+                        <small>{koreaDate(new Date(task.memo.created_at))}</small>
                       </div>
                       <button
                         type="button"
@@ -1094,6 +1114,7 @@ export default function Dashboard() {
             {memoCards("purchase")}
 
             <EntryForm
+              key={candidate ? `${candidate.memo.id}:${candidate.fragment.id}` : "manual"}
               candidate={candidate}
               busy={busy}
               onCancel={() => setCandidate(null)}
@@ -1428,9 +1449,10 @@ export default function Dashboard() {
       </button>
 
       {candidate && page !== "money" && (
-        <div className="modal">
+        <Modal label="메모를 확인하고 기록" onClose={() => { if (!busy) setCandidate(null); }}>
           <div className="dialog">
             <EntryForm
+              key={`${candidate.memo.id}:${candidate.fragment.id}`}
               candidate={candidate}
               busy={busy}
               onCancel={() => setCandidate(null)}
@@ -1442,7 +1464,7 @@ export default function Dashboard() {
               }
             />
           </div>
-        </div>
+        </Modal>
       )}
 
       {breathing && <BreatheModal onClose={() => setBreathing(false)} />}

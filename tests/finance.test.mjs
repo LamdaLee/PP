@@ -7,6 +7,7 @@ import {
   monthRange,
   koreaDate,
   scheduleOccurrences,
+  expenseOnDate,
 } from "../lib/finance.mjs";
 test("명확한 구매는 지출, 욕구·질문·부정·과거 날짜는 확인 대기", () => {
   assert.equal(
@@ -86,6 +87,7 @@ test("한국 날짜·윤년·기간", () => {
 });
 test("말일, 과거 미확인 일정, 완료 및 종료일 제외", () => {
   const s = {
+    id: "rent",
     active: true,
     recurrence: "monthly",
     day_of_month: 31,
@@ -93,11 +95,31 @@ test("말일, 과거 미확인 일정, 완료 및 종료일 제외", () => {
     end_date: "2026-03-31",
   };
   const dates = scheduleOccurrences(s, "2026-02-15", [
-    { due_date: "2026-01-31" },
+    { schedule_id: "rent", due_date: "2026-01-31" },
   ]);
   assert.deepEqual(
     dates.map((d) => d.due_date),
     ["2026-02-28", "2026-03-31"],
   );
   assert.equal(scheduleOccurrences(s, "2026-03-01", [])[0].overdue, true);
+});
+test("같은 납부일의 다른 일정 완료는 이 일정을 숨기지 않는다", () => {
+  const rent = { id: "rent", active: true, recurrence: "once", start_date: "2026-10-10" };
+  const paid = [{ schedule_id: "phone", due_date: "2026-10-10" }];
+  assert.equal(scheduleOccurrences(rent, "2026-10-07", paid).length, 1);
+  assert.equal(scheduleOccurrences({ ...rent, id: "phone" }, "2026-10-07", paid).length, 0);
+  assert.equal(scheduleOccurrences({ ...rent, id: "phone" }, "2026-10-07", []).length, 1);
+});
+test("감정 날짜의 소비는 조회 범위 밖이나 잘린 목록에서 0원으로 표시하지 않는다", () => {
+  const rows = [
+    { occurred_on: "2026-10-08", kind: "expense", amount: 21000 },
+    { occurred_on: "2026-10-08", kind: "expense", amount: 5000, voided_at: "x" },
+    { occurred_on: "2026-10-08", kind: "repayment", amount: 21000 },
+  ];
+  const range = monthRange("2026-10");
+  assert.equal(koreaDate(new Date("2026-10-07T16:00:00Z")), "2026-10-08");
+  assert.equal(expenseOnDate(rows, "2026-10-08", range), 21000);
+  assert.equal(expenseOnDate(rows, "2026-10-09", range), 0);
+  assert.equal(expenseOnDate(rows, "2026-09-30", range), null);
+  assert.equal(expenseOnDate(rows, "2026-10-08", range, false), null);
 });

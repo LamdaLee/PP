@@ -52,6 +52,7 @@ export function EntryForm({
       <label>
         내용
         <input
+          disabled={busy}
           name="title"
           defaultValue={candidate?.fragment.text || ""}
           maxLength={500}
@@ -62,6 +63,7 @@ export function EntryForm({
         <label>
           종류
           <select
+            disabled={busy}
             name="kind"
             defaultValue={candidate?.fragment.kind || "expense"}
           >
@@ -77,6 +79,7 @@ export function EntryForm({
         <label>
           금액(원)
           <input
+            disabled={busy}
             name="amount"
             type="number"
             min="1"
@@ -88,11 +91,11 @@ export function EntryForm({
         </label>
         <label>
           발생일
-          <input name="date" type="date" defaultValue={koreaDate()} required />
+          <input disabled={busy} name="date" type="date" defaultValue={koreaDate()} required />
         </label>
         <label>
           결제 수단
-          <select name="method" defaultValue="cash" required>
+          <select disabled={busy} name="method" defaultValue="cash" required>
             <option value="credit">카드</option>
             <option value="cash">현금</option>
             <option value="phone">휴대폰</option>
@@ -102,7 +105,7 @@ export function EntryForm({
       </div>
       <button disabled={busy}>가계부에 기록</button>
       {candidate && (
-        <button type="button" className="text-button" onClick={onCancel}>
+        <button type="button" disabled={busy} className="text-button" onClick={onCancel}>
           나중에 확인
         </button>
       )}

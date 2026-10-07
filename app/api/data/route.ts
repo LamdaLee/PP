@@ -203,6 +203,12 @@ export async function POST(req: Request) {
       if (existing.data) {
         if (existing.data.body !== body.text)
           throw new ApiError("요청 ID가 다른 메모에 사용되었습니다.");
+        const saved = await db.rpc("save_memo_with_cooling", {
+          p_request_id: body.requestId,
+          p_body: body.text,
+          p_fragments: existing.data.fragments,
+        });
+        if (saved.error) throw new ApiError(saved.error.message);
         return jsonResponse({
           ok: true,
           result: existing.data.id,
@@ -217,7 +223,7 @@ export async function POST(req: Request) {
       const fragments = classification.fragments;
       memoFragments = fragments;
       aiMode = classification.aiMode;
-      result = await db.rpc("save_memo", {
+      result = await db.rpc("save_memo_with_cooling", {
         p_request_id: body.requestId,
         p_body: body.text,
         p_fragments: fragments,
@@ -347,6 +353,17 @@ export async function POST(req: Request) {
         p_due: body.due,
         p_date: koreaDate(),
         p_request: body.requestId,
+      });
+    } else if (body.action === "cooling-purchase") {
+      if (!UUID.test(body.id) || !UUID.test(body.requestId) || !DATE.test(body.date))
+        throw new ApiError("구매 기록을 확인해 주세요.");
+      if (!["cash", "debit", "credit", "account", "phone", "easy"].includes(body.method))
+        throw new ApiError("결제 수단을 확인해 주세요.");
+      result = await db.rpc("purchase_cooling_item", {
+        p_id: body.id,
+        p_request_id: body.requestId,
+        p_date: body.date,
+        p_method: body.method,
       });
     } else if (body.action === "cooling") {
       const item = body.item || {};

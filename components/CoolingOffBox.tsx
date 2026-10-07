@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export interface CoolingItem {
   id: string;
@@ -42,16 +42,14 @@ export function coolingFromRow(row: {
 
 export function CoolingOffBox({
   items,
+  busy,
   onSave,
   onConvertToExpense,
 }: {
   items: CoolingItem[];
+  busy: boolean;
   onSave: (item: CoolingItem) => Promise<boolean>;
-  onConvertToExpense: (item: {
-    title: string;
-    amount: number;
-    method: string;
-  }) => Promise<void>;
+  onConvertToExpense: (item: CoolingItem, method: string) => Promise<boolean>;
 }) {
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
@@ -60,6 +58,7 @@ export function CoolingOffBox({
   const [hours, setHours] = useState(24);
   const [now, setNow] = useState(Date.now());
   const [message, setMessage] = useState("");
+  const newItemId = useRef(crypto.randomUUID());
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -74,7 +73,7 @@ export function CoolingOffBox({
     const createTime = new Date();
     const expireTime = new Date(createTime.getTime() + hours * 60 * 60 * 1000);
     const newItem: CoolingItem = {
-      id: crypto.randomUUID(),
+      id: newItemId.current,
       title: title.trim(),
       amount: numAmount,
       reason: reason.trim(),
@@ -85,6 +84,7 @@ export function CoolingOffBox({
       status: "cooling",
     };
     if (!(await onSave(newItem))) return;
+    newItemId.current = crypto.randomUUID();
     setTitle("");
     setAmount("");
     setReason("");
@@ -104,8 +104,7 @@ export function CoolingOffBox({
 
   const handleConfirmPurchase = async (item: CoolingItem, method: string) => {
     if (!item.amount || !method) return;
-    await onConvertToExpense({ title: item.title, amount: item.amount, method });
-    if (!(await onSave({ ...item, status: "purchased" }))) return;
+    if (!(await onConvertToExpense(item, method))) return;
     setMessage(`${item.title}을(를) 가계부 소비로 적었어요.`);
     setTimeout(() => setMessage(""), 4000);
   };
@@ -144,6 +143,7 @@ export function CoolingOffBox({
             <label>
               사고 싶은 물건
               <input
+                disabled={busy}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="예: 무선 헤드폰, 옷, 배달 야식"
@@ -153,6 +153,7 @@ export function CoolingOffBox({
             <label>
               금액(원, 없어도 돼요)
               <input
+                disabled={busy}
                 type="number"
                 min="1"
                 value={amount}
@@ -162,7 +163,7 @@ export function CoolingOffBox({
             </label>
             <label>
               지금 느끼는 감정
-              <select value={emotion} onChange={(e) => setEmotion(e.target.value)}>
+              <select disabled={busy} value={emotion} onChange={(e) => setEmotion(e.target.value)}>
                 <option value="스트레스">스트레스 해소</option>
                 <option value="보상심리">수고한 나를 위한 보상</option>
                 <option value="불안">불안 / 품절 조급함</option>
@@ -172,7 +173,7 @@ export function CoolingOffBox({
             </label>
             <label>
               대기 시간
-              <select value={hours} onChange={(e) => setHours(Number(e.target.value))}>
+              <select disabled={busy} value={hours} onChange={(e) => setHours(Number(e.target.value))}>
                 <option value={24}>24시간</option>
                 <option value={48}>48시간</option>
                 <option value={72}>72시간</option>
@@ -182,6 +183,7 @@ export function CoolingOffBox({
           <label>
             하루 뒤에도 정말 필요할까요? 구매하려는 진짜 이유
             <input
+              disabled={busy}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="예: 오늘 피곤해서 충동이 드는 것 같다. 내일까지 참아보자."
@@ -189,7 +191,7 @@ export function CoolingOffBox({
           </label>
           <div className="capture-footer">
             <small>여기에 있는 동안은 가계부에 넣지 않아요.</small>
-            <button type="submit">잠깐 두기</button>
+            <button type="submit" disabled={busy}>잠깐 두기</button>
           </div>
         </form>
       </section>
@@ -228,6 +230,7 @@ export function CoolingOffBox({
                   <div style={{ display: "flex", gap: "8px" }}>
                     <button
                       type="button"
+                      disabled={busy}
                       onClick={() => handleCancelAndSave(item)}
                     >
                       안 사기
@@ -242,7 +245,7 @@ export function CoolingOffBox({
                           await handleConfirmPurchase(item, method);
                         }}
                       >
-                        <select name="method" required defaultValue="">
+                        <select name="method" required defaultValue="" aria-label={`${item.title} 결제 수단`} disabled={busy}>
                           <option value="" disabled>
                             결제 수단
                           </option>
@@ -251,7 +254,7 @@ export function CoolingOffBox({
                           <option value="phone">휴대폰</option>
                           <option value="easy">간편결제</option>
                         </select>
-                        <button type="submit">가계부에 적기</button>
+                        <button type="submit" disabled={busy}>가계부에 적기</button>
                       </form>
                     ) : (
                       <form
@@ -265,13 +268,14 @@ export function CoolingOffBox({
                         }}
                       >
                         <input
+                          disabled={busy}
                           name="amount"
                           type="number"
                           min="1"
                           placeholder="금액"
                           aria-label={`${item.title} 금액`}
                         />
-                        <button type="submit">금액 적기</button>
+                        <button type="submit" disabled={busy}>금액 적기</button>
                       </form>
                     )}
                   </div>
