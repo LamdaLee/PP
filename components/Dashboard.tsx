@@ -368,10 +368,7 @@ export default function Dashboard() {
                 </button>
               </div>
             </section>
-            <RoutineToday
-              controller={routineController}
-              onNavigateRoutines={() => setPage("routines")}
-            />
+            <RoutineToday controller={routineController} />
             {memoCards()}
           </>
         )}
