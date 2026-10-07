@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   try {
     const db = await client(req);
     const { searchParams } = new URL(req.url);
-    
+
     // [개선] 데이터 누적 대비: cursor 및 month 쿼리 파라미터 지원
     const month = searchParams.get("month"); // 예: '2026-10'
     const memoCursor = searchParams.get("memo_cursor"); // 이전 마지막 created_at
@@ -55,7 +55,9 @@ export async function GET(req: Request) {
     ]);
 
     if (memos.error || entries.error || schedules.error || settlements.error) {
-      throw Error("데이터를 불러오지 못했습니다. DB 연결을 확인해 주세요.");
+      throw Error(
+        "데이터를 불러오지 못했습니다. DB 연결을 확인해 주세요.",
+      );
     }
 
     return response({
@@ -70,13 +72,12 @@ export async function GET(req: Request) {
   } catch (e) {
     return response(
       { error: e instanceof Error ? e.message : "조회 실패" },
-      400
+      400,
     );
   }
 }
 
 export async function POST(req: Request) {
-  // 기존 POST 로직 (멱등성 UUID 및 save_memo RPC 보존)
   try {
     const length = Number(req.headers.get("content-length") || 0);
     if (length > 40000) return response({ error: "요청이 너무 큽니다." }, 413);
@@ -90,7 +91,11 @@ export async function POST(req: Request) {
     let memoFragments: unknown;
 
     if (body.action === "memo") {
-      if (typeof body.text !== "string" || !body.text.trim() || body.text.length > 10000)
+      if (
+        typeof body.text !== "string" ||
+        !body.text.trim() ||
+        body.text.length > 10000
+      )
         throw Error("메모를 1~10000자로 입력해 주세요.");
       if (!/^[0-9a-f-]{36}$/i.test(body.requestId))
         throw Error("저장 요청 ID가 필요합니다.");
@@ -102,6 +107,8 @@ export async function POST(req: Request) {
         .maybeSingle();
       if (existing.error) throw Error("저장 상태를 확인하지 못했습니다.");
       if (existing.data) {
+        if (existing.data.body !== body.text)
+          throw Error("요청 ID가 다른 메모에 사용되었습니다.");
         return response({
           ok: true,
           result: existing.data.id,
@@ -109,12 +116,10 @@ export async function POST(req: Request) {
           fragments: existing.data.fragments,
         });
       }
-
       const classification = await classifyMemo(body.text, koreaDate());
       const fragments = classification.fragments;
       memoFragments = fragments;
       aiMode = classification.aiMode;
-
       result = await db.rpc("save_memo", {
         p_request_id: body.requestId,
         p_body: body.text,
@@ -133,6 +138,25 @@ export async function POST(req: Request) {
       });
     } else if (body.action === "void") {
       result = await db.rpc("void_entry", { p_id: body.id });
+    } else if (body.action === "schedule") {
+      const s = body.schedule;
+      result = await db.rpc("save_schedule", {
+        p_request: body.requestId,
+        p_title: s.title,
+        p_kind: s.kind,
+        p_amount: s.amount,
+        p_recurrence: s.recurrence,
+        p_day: s.recurrence === "monthly" ? s.day : null,
+        p_start: s.start,
+        p_end: s.end || null,
+      });
+    } else if (body.action === "settle") {
+      result = await db.rpc("settle_schedule", {
+        p_schedule: body.id,
+        p_due: body.due,
+        p_date: koreaDate(),
+        p_request: body.requestId,
+      });
     } else {
       throw Error("지원하지 않는 작업입니다.");
     }
@@ -147,7 +171,7 @@ export async function POST(req: Request) {
   } catch (e) {
     return response(
       { error: e instanceof Error ? e.message : "저장 실패" },
-      400
+      400,
     );
   }
 }
