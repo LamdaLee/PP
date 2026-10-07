@@ -47,12 +47,7 @@ export default function Dashboard() {
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
     [sync, setSync] = useState("연결 준비"),
-    [text, setText] = useState(() => {
-      if (typeof window !== "undefined") {
-        return localStorage.getItem("pp_draft_text") || "";
-      }
-      return "";
-    }),
+    [text, setText] = useState(""),
     [breathing, setBreathing] = useState(false);
 
   const [month, setMonth] = useState(() => koreaDate().slice(0, 7)),
@@ -232,43 +227,44 @@ export default function Dashboard() {
     });
   }
 
+  const today = koreaDate();
   const rows = data.entries.filter(
     (e) =>
       e.occurred_on >= range.start && e.occurred_on <= range.end && !e.voided_at,
   );
-  const ledger = sumLedger(rows);
+  const totals = sumLedger(rows);
   const due = data.schedules
-    .flatMap((s) => scheduleOccurrences(s, koreaDate(), data.settlements))
+    .flatMap((s) => scheduleOccurrences(s, today, data.settlements))
     .sort((a, b) => a.due_date.localeCompare(b.due_date));
 
-  const nav = [
-    { id: "inbox", label: "생각함" },
-    { id: "money", label: "돈" },
-    { id: "cooling", label: "충동 보류함" },
-    { id: "routines", label: "루틴" },
-    { id: "work", label: "일" },
-    { id: "emotion", label: "감정" },
-    { id: "breathe", label: "숨고르기" },
+  const nav: [string, string][] = [
+    ["inbox", "생각함"],
+    ["cooling", "충동 보류함"],
+    ["money", "돈"],
+    ["routine", "루틴"],
+    ["work", "일"],
+    ["emotion", "감정"],
+    ["breathe", "숨고르기"],
   ];
 
   if (!ready) {
     return (
-      <div className="layout">
+      <div className="auth">
         <Brand />
-        <p>시작하는 중...</p>
+        <p>시작하는 중…</p>
       </div>
     );
   }
 
   if (!configured) {
     return (
-      <div className="layout">
+      <div className="auth">
         <Brand />
         <div className="card">
-          <h2>Supabase 설정이 필요합니다</h2>
+          <h2>설정 필요</h2>
           <p>
             Vercel 또는 환경변수에 <code>NEXT_PUBLIC_SUPABASE_URL</code>과{" "}
-            <code>NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</code>를 등록해 주세요.
+            <code>NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</code>를 추가해 주세요.
           </p>
         </div>
       </div>
@@ -277,8 +273,10 @@ export default function Dashboard() {
 
   if (!session) {
     return (
-      <div className="layout">
+      <div className="auth">
         <Brand />
+        <h1>잠시 멈추고, 온전히 바라보기</h1>
+        <p>복잡하게 적지 않아도 괜찮아요. 돈, 감정, 일의 실마리를 풀어둡니다.</p>
         <Auth />
       </div>
     );
@@ -290,90 +288,195 @@ export default function Dashboard() {
         !category ||
         (m.fragments || []).some((f) => f.categories?.includes(category as any)),
     );
-    if (!list.length) return <p className="hint">아직 남겨둔 메모가 없어요.</p>;
+    if (!list.length) return <p className="empty">아직 남겨둔 메모가 없어요.</p>;
     return (
-      <div className="memos-list">
+      <div className="fragments">
         {list.map((m) => (
-          <article key={m.id} className="card">
+          <div key={m.id} className="card">
             <time>{m.created_at.slice(0, 10)}</time>
-            <p className="memo-body">{m.body}</p>
-            <div className="chips">
+            <p className="original">{m.body}</p>
+            <div>
               {(m.fragments || []).map((f) => (
-                <span key={f.id} className={`chip chip-${f.status}`}>
-                  {f.text}
-                  {f.amount ? ` · ${won(f.amount)}` : ""}
+                <div key={f.id}>
+                  <p>{f.text}</p>
+                  <span className="tags">
+                    {f.categories.map((c) => labels[c] || c).join(" · ")}
+                    {f.amount ? ` · ${won(f.amount)}` : ""}
+                  </span>
+                  <span className="status">
+                    {f.status === "posted"
+                      ? "기록됨"
+                      : f.status === "pending"
+                        ? "확인 필요"
+                        : "메모"}
+                  </span>
                   {f.status === "pending" && (
                     <button
                       type="button"
-                      className="inline-link"
+                      className="text-button"
                       onClick={() => setCandidate({ memo: m, fragment: f })}
                     >
-                      확인
+                      확인하고 가계부에 넣기
                     </button>
                   )}
-                </span>
+                </div>
               ))}
             </div>
-          </article>
+          </div>
         ))}
       </div>
     );
   }
 
+  const dueCards = (
+    <div className="card apricot">
+      <p className="eyebrow">예정된 일정</p>
+      <h2>{due.length ? `${due.length}건 남음` : "모두 완료"}</h2>
+      {due.slice(0, 3).map((s) => (
+        <div className="due" key={s.id + s.due_date}>
+          <div>
+            <b>{s.title}</b>
+            <small>
+              {s.due_date} · {labels[s.kind] || s.kind}
+              {s.overdue ? " · 지난 일정" : ""}
+            </small>
+          </div>
+          <strong>{won(s.amount)}</strong>
+          <button
+            disabled={busy}
+            onClick={() => {
+              action(async () => {
+                await send({
+                  action: "settle",
+                  id: s.id,
+                  due: s.due_date,
+                  requestId: crypto.randomUUID(),
+                });
+              });
+            }}
+          >
+            완료 기록
+          </button>
+        </div>
+      ))}
+      {!due.length && <p>예정된 일정이 없어요.</p>}
+    </div>
+  );
+
   return (
-    <div className="layout">
-      <header className="header">
+    <div className="shell">
+      <aside>
         <Brand />
-        <nav className="nav">
-          {nav.map((n) => (
+        <nav aria-label="주 메뉴">
+          {nav.map(([id, name]) => (
             <button
-              key={n.id}
-              className={page === n.id ? "active" : ""}
-              onClick={() => setPage(n.id)}
+              key={id}
+              className={page === id ? "selected" : ""}
+              onClick={() => setPage(id)}
             >
-              {n.label}
+              {name}
             </button>
           ))}
-          <button
-            type="button"
-            className="text-button"
-            onClick={() => browserClient().auth.signOut()}
-          >
-            로그아웃
-          </button>
         </nav>
-        <span className="sync-pill" title="동기화 상태">
-          {sync}
-        </span>
-      </header>
+        <small>{session.user.email}</small>
+        <button
+          className="text-button"
+          onClick={() => browserClient().auth.signOut()}
+        >
+          로그아웃
+        </button>
+      </aside>
 
-      {notice && <p className="notice" role="status">{notice}</p>}
-      {error && <p className="error" role="alert">{error}</p>}
+      <main>
+        <header>
+          <div>
+            <p className="eyebrow">조금씩, 나의 속도로</p>
+            <h1>{nav.find((n) => n[0] === page)?.[1]}</h1>
+          </div>
+          <div className="header-actions">
+            <span className="sync" role="status">
+              {sync}
+            </span>
+            <button
+              className="text-button"
+              onClick={() => browserClient().auth.signOut()}
+            >
+              로그아웃
+            </button>
+          </div>
+        </header>
 
-      <main className="main">
-        {/* INBOX TAB */}
+        {error && (
+          <div role="alert" className="alert">
+            {error}
+          </div>
+        )}
+        {notice && (
+          <p role="status" className="notice">
+            {notice}
+          </p>
+        )}
+
+        {/* 1. INBOX TAB */}
         {page === "inbox" && (
           <>
-            <section className="card compose">
-              <h2>생각함</h2>
+            <section className="card capture">
+              <h2>지금 떠오르는 것을 놓아두세요.</h2>
+              <p>정리하지 않아도 괜찮아요. 돈, 감정, 일로 연결해 둘게요.</p>
+              <label className="sr-only" htmlFor="dump">
+                생각 메모
+              </label>
               <textarea
+                id="dump"
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder="21000원 우산 구매&#10;떠오른 생각이나 할 일, 감정도 편하게 적어두세요."
-                rows={4}
+                placeholder={
+                  "21000원 우산 구매\n오늘은 조금 불안해. 보고서 작성해야 해."
+                }
+                maxLength={10000}
               />
-              <div className="actions">
+              <div className="capture-footer">
+                <small>명확한 구매는 바로 기록 · 애매한 내용은 확인 대기</small>
                 <button disabled={busy || !text.trim()} onClick={saveMemo}>
-                  남겨두기
+                  {busy ? "저장 중…" : "생각 내려놓기"}
                 </button>
               </div>
             </section>
-            <RoutineToday controller={routineController} />
+
+            <div className="grid">
+              <div className="card butter">
+                <p className="eyebrow">이번 달 소비</p>
+                <h2>
+                  {won(
+                    sumLedger(
+                      data.entries.filter(
+                        (e) => e.occurred_on.slice(0, 7) === today.slice(0, 7),
+                      ),
+                    ).expense,
+                  )}
+                </h2>
+                <p>대금·상환과 예정 금액은 따로 표시해요.</p>
+                <button
+                  className="text-button"
+                  onClick={() => setPage("money")}
+                >
+                  돈 살펴보기 →
+                </button>
+              </div>
+              {dueCards}
+            </div>
+
+            <RoutineToday controller={routineController} compact />
+            <button className="text-button" onClick={() => setPage("routine")}>
+              루틴 등록·관리 →
+            </button>
+
+            <h2 className="section-heading">내려놓은 생각들</h2>
             {memoCards()}
           </>
         )}
 
-        {/* COOLING OFF BOX TAB */}
+        {/* 2. COOLING OFF BOX TAB (NEW) */}
         {page === "cooling" && (
           <CoolingOffBox
             onConvertToExpense={async (item) => {
@@ -391,50 +494,73 @@ export default function Dashboard() {
           />
         )}
 
-        {/* MONEY TAB */}
+        {/* 3. ROUTINES TAB */}
+        {page === "routine" && (
+          <RoutineManager controller={routineController} />
+        )}
+
+        {/* 4. MONEY TAB */}
         {page === "money" && (
           <>
-            <section className="card ledger-summary">
-              <div className="month-picker">
+            <section className="card">
+              <h2>언제부터 언제까지</h2>
+              <div className="form-row">
                 <label>
-                  조회 기간
+                  월 선택
                   <input
                     type="month"
                     value={month}
                     onChange={(e) => {
                       setMonth(e.target.value);
-                      try {
-                        setRange(monthRange(e.target.value));
-                      } catch {}
+                      if (e.target.value) setRange(monthRange(e.target.value));
                     }}
                   />
                 </label>
+                <label>
+                  시작
+                  <input
+                    type="date"
+                    value={range.start}
+                    onChange={(e) =>
+                      setRange({ ...range, start: e.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  끝
+                  <input
+                    type="date"
+                    value={range.end}
+                    min={range.start}
+                    onChange={(e) =>
+                      setRange({ ...range, end: e.target.value })
+                    }
+                  />
+                </label>
               </div>
-              <div className="summary-grid">
+              <div className="totals">
                 <div>
-                  <span>수입</span>
-                  <b>+{won(ledger.income)}</b>
+                  <small>수입</small>
+                  <strong>{won(totals.income)}</strong>
                 </div>
                 <div>
-                  <span>소비</span>
-                  <b className="expense">-{won(ledger.expense)}</b>
+                  <small>소비</small>
+                  <strong>{won(totals.expense)}</strong>
                 </div>
                 <div>
-                  <span>환불</span>
-                  <b>+{won(ledger.refund)}</b>
+                  <small>환불</small>
+                  <strong>{won(totals.refund)}</strong>
                 </div>
                 <div>
-                  <span>상환</span>
-                  <b>{won(ledger.repayment)}</b>
-                </div>
-                <div className="net">
-                  <span>소비 차액</span>
-                  <b>
-                    {ledger.net >= 0 ? "+" : ""}
-                    {won(ledger.net)}
-                  </b>
+                  <small>대금·상환</small>
+                  <strong>{won(totals.repayment)}</strong>
                 </div>
               </div>
+              <p className="hint">
+                소비 차액 {won(totals.net)} = 수입 + 환불 − 소비. 은행 잔액이
+                아니에요. 카드 구매는 소비, 카드 대금 납부는 대금·상환으로
+                기록합니다.
+              </p>
             </section>
 
             <EntryForm
@@ -445,84 +571,121 @@ export default function Dashboard() {
                 action(async () => {
                   await send(body);
                   setCandidate(null);
-                  return "기록 완료";
                 })
               }
             />
+
+            <section className="card">
+              <h2>가계부 내역</h2>
+              {rows
+                .filter((e) => !e.voided_at)
+                .map((e) => (
+                  <div className="due" key={e.id}>
+                    <div>
+                      <b>{e.title}</b>
+                      <small>
+                        {e.occurred_on} · {labels[e.kind]} ·{" "}
+                        {labels[e.payment_method] || e.payment_method}
+                      </small>
+                    </div>
+                    <strong>
+                      {["income", "refund"].includes(e.kind)
+                        ? "+"
+                        : e.kind === "transfer"
+                          ? ""
+                          : "−"}
+                      {won(e.amount)}
+                    </strong>
+                    <button
+                      className="text-button"
+                      disabled={busy}
+                      onClick={() => {
+                        if (
+                          confirm("이 기록을 취소할까요? 원본 메모는 남습니다.")
+                        )
+                          action(async () => {
+                            await send({ action: "void", id: e.id });
+                          });
+                      }}
+                    >
+                      취소
+                    </button>
+                  </div>
+                ))}
+              {!rows.some((e) => !e.voided_at) && (
+                <p>선택한 기간의 내역이 없어요.</p>
+              )}
+            </section>
+
+            {dueCards}
 
             <ScheduleForm
               busy={busy}
               onSave={(body) =>
                 action(async () => {
                   await send(body);
-                  return "일정을 추가했습니다.";
                 })
               }
             />
 
-            <section className="card">
-              <h3>{month} 거래 내역 ({rows.length}건)</h3>
-              {rows.length === 0 ? (
-                <p className="hint">이번 달 거래 내역이 없습니다.</p>
-              ) : (
-                <ul className="entries-list">
-                  {rows.map((r) => (
-                    <li key={r.id}>
-                      <span>{r.occurred_on}</span>
-                      <b>{r.title}</b>
-                      <span>{labels[r.kind] || r.kind}</span>
-                      <span className={r.kind === "expense" ? "expense" : ""}>
-                        {r.kind === "expense" ? "-" : "+"}
-                        {won(r.amount)}
-                      </span>
-                      <button
-                        type="button"
-                        className="text-button"
-                        onClick={() =>
-                          action(async () => {
-                            await send({ action: "void", id: r.id });
-                            return "거래를 취소했습니다.";
-                          })
-                        }
-                      >
-                        취소
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
+            <h2 className="section-heading">돈과 연결된 메모</h2>
+            {memoCards("money")}
           </>
         )}
 
-        {/* ROUTINES TAB */}
-        {page === "routines" && (
-          <RoutineManager controller={routineController} />
-        )}
-
-        {/* WORK TAB */}
+        {/* 5. WORK TAB */}
         {page === "work" && (
           <>
-            <h2>일 관련 메모</h2>
+            <section className="card butter">
+              <h2>지금은 한 가지씩</h2>
+              <p>
+                업무 메모를 한곳에서 살펴보세요. 실행 순서·체크리스트 기능은
+                다음 개발 단계에 연결할 수 있어요.
+              </p>
+            </section>
             {memoCards("work")}
           </>
         )}
 
-        {/* EMOTION TAB */}
+        {/* 6. EMOTION TAB */}
         {page === "emotion" && (
           <>
-            <h2>감정 기록</h2>
+            <section className="card apricot">
+              <h2>오늘 마음은 어땠나요?</h2>
+              <p>
+                생각함에 감정과 사건을 적으면 날짜별 원본 기록과 함께 이곳에서
+                볼 수 있어요.
+              </p>
+              <button onClick={() => setPage("inbox")}>
+                마음 기록하러 가기
+              </button>
+            </section>
             {memoCards("emotion")}
           </>
         )}
 
-        {/* BREATHE TAB */}
+        {/* 7. BREATHE TAB */}
         {page === "breathe" && (
           <>
-            <section className="card">
-              <h2>숨고르기</h2>
-              <p>마음이 조급하거나 충동이 일어날 때 잠시 멈춥니다.</p>
-              <button onClick={() => setBreathing(true)}>지금 호흡하기</button>
+            <section className="card grounding">
+              <img src="/symbol.png" alt="" />
+              <h2>지금 당장 결정하지 않아도 돼요.</h2>
+              <p>
+                숨을 편하게 쉬고, 사고 싶은 이유와 지금 느끼는 감정을 생각함에
+                남겨보세요.
+              </p>
+              <button onClick={() => setBreathing(true)}>잠깐 숨고르기</button>
+              <button
+                className="secondary"
+                onClick={() => {
+                  setText(
+                    "사고 싶은 것:\n가격:\n지금 느끼는 감정:\n하루 뒤에도 필요한 이유:",
+                  );
+                  setPage("inbox");
+                }}
+              >
+                구매 전에 적어보기
+              </button>
             </section>
             {memoCards("breathe")}
           </>
@@ -532,6 +695,24 @@ export default function Dashboard() {
       <button className="pause" onClick={() => setBreathing(true)}>
         Ⅱ 잠깐 숨고르기
       </button>
+
+      {candidate && page !== "money" && (
+        <div className="modal">
+          <div className="dialog">
+            <EntryForm
+              candidate={candidate}
+              busy={busy}
+              onCancel={() => setCandidate(null)}
+              onSave={(body) =>
+                action(async () => {
+                  await send(body);
+                  setCandidate(null);
+                })
+              }
+            />
+          </div>
+        </div>
+      )}
 
       {breathing && <BreatheModal onClose={() => setBreathing(false)} />}
     </div>
