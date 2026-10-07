@@ -698,7 +698,7 @@ export default function Dashboard() {
         {/* 1. INBOX TAB */}
         {page === "inbox" && (
           <>
-            <div className="form-row" role="tablist" aria-label="마음함">
+            <div className="tabs" role="tablist" aria-label="마음함">
               {(
                 [
                   ["write", "둔 말"],
@@ -791,7 +791,7 @@ export default function Dashboard() {
           <section className="card">
             <h2>나뉜 메모</h2>
             <p>완료한 뒤에 나뉜 조각을 여기서 다시 볼 수 있어요.</p>
-            <div className="form-row">
+            <div className="tabs" aria-label="조각 분류">
               {(
                 [
                   ["all", "전체"],
