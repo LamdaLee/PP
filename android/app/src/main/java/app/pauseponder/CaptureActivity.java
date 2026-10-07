@@ -3,14 +3,13 @@ package app.pauseponder;
 import android.app.*;
 import android.content.*;
 import android.os.*;
-import android.text.*;
 import android.widget.*;
 import java.util.UUID;
 import org.json.*;
 
 public final class CaptureActivity extends Activity {
   EditText input;
-  TextView previewText;
+  TextView message;
 
   public void onCreate(Bundle b) {
     super.onCreate(b);
@@ -32,35 +31,16 @@ public final class CaptureActivity extends Activity {
         android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
     input.setText(Vault.get(this).read("draft", ""));
     l.addView(input);
-
-    // [신규] 실시간 로컬 파싱 피드백 뷰
-    previewText = Ui.text(this, "작성 중: 자동 분류 준비 완료", 13);
-    previewText.setTextColor(0xFF5A7863);
-    l.addView(previewText);
-
-    input.addTextChangedListener(new TextWatcher() {
-      public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-      public void onTextChanged(CharSequence s, int start, int before, int count) {
-        String text = s.toString().trim();
-        if (text.isEmpty()) {
-          previewText.setText("작성 중: 자동 분류 준비 완료");
-          return;
-        }
-        // 로컬 파서로 즉시 판별
-        String summary = MemoParser.quickSummarize(text);
-        previewText.setText("💡 실시간 파싱: " + summary);
-      }
-      public void afterTextChanged(Editable s) {}
-    });
-
+    message = Ui.text(this, "완료를 누르면 정리해요. 쓰는 동안에는 나누지 않아요.", 14);
+    l.addView(message);
     l.addView(
         Ui.button(
             this,
-            "적어두기",
+            "완료",
             () -> {
               String text = input.getText().toString().trim();
               if (text.isEmpty() || text.length() > 10000) {
-                previewText.setText("1~10000자로 입력해 주세요.");
+                message.setText("1~10000자로 입력해 주세요.");
                 return;
               }
               try {
@@ -84,7 +64,7 @@ public final class CaptureActivity extends Activity {
                 Toast.makeText(this, "저장했어요: " + summary, Toast.LENGTH_SHORT).show();
                 finish();
               } catch (Exception e) {
-                previewText.setText(e.getMessage());
+                message.setText(e.getMessage());
               }
             }));
 

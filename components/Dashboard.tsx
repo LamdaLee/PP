@@ -147,44 +147,70 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!session) return;
-    let timer: NodeJS.Timeout;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    let channel: ReturnType<ReturnType<typeof browserClient>["channel"]> | null =
+      null;
+    const db = browserClient();
     const update = () =>
       reload()
         .then(() => {
-          setSync("동기화됨");
-          setError("");
+          if (!stopped) {
+            setSync("동기화됨");
+            setError("");
+          }
         })
-        .catch((e) => setSync(e.message));
-    const db = browserClient();
-    let channel = db.channel(`account-${session.user.id}`);
-    for (const table of [
-      "memos",
-      "entries",
-      "schedules",
-      "settlements",
-      "cooling_off_items",
-    ])
-      channel = channel.on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table,
-          filter: `user_id=eq.${session.user.id}`,
-        },
-        () => {
-          clearTimeout(timer);
-          timer = setTimeout(update, 200);
-        },
-      );
-    channel.subscribe((status) => {
-      if (status === "SUBSCRIBED") {
-        setSync("실시간 연결됨");
-        update();
-      } else if (status === "CHANNEL_ERROR") {
-        setSync("재연결 중");
-      }
-    });
+        .catch((e) => {
+          if (!stopped) setSync(e.message);
+        });
+    const listen = async () => {
+      if (stopped) return;
+      const {
+        data: { session: live },
+      } = await db.auth.getSession();
+      if (stopped || !live) return;
+      await db.realtime.setAuth(live.access_token);
+      if (channel) db.removeChannel(channel);
+      channel = db.channel(`account-${live.user.id}`);
+      for (const table of [
+        "memos",
+        "entries",
+        "schedules",
+        "settlements",
+        "cooling_off_items",
+      ])
+        channel = channel.on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table,
+            filter: `user_id=eq.${live.user.id}`,
+          },
+          () => {
+            clearTimeout(timer);
+            timer = setTimeout(update, 200);
+          },
+        );
+      channel.subscribe((status) => {
+        if (stopped) return;
+        if (status === "SUBSCRIBED") {
+          setSync("실시간 연결됨");
+          update();
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          setSync("재연결 중");
+          if (channel) db.removeChannel(channel);
+          channel = null;
+          clearTimeout(retry);
+          retry = setTimeout(listen, 2000);
+        }
+      });
+    };
+    void listen();
+    const poll = setInterval(() => {
+      if (document.visibilityState === "visible") update();
+    }, 4000);
     const online = () => {
       setSync("온라인 · 동기화 중");
       update();
@@ -197,8 +223,11 @@ export default function Dashboard() {
     window.addEventListener("offline", offline);
     document.addEventListener("visibilitychange", visible);
     return () => {
+      stopped = true;
       clearTimeout(timer);
-      db.removeChannel(channel);
+      clearTimeout(retry);
+      clearInterval(poll);
+      if (channel) db.removeChannel(channel);
       window.removeEventListener("online", online);
       window.removeEventListener("offline", offline);
       document.removeEventListener("visibilitychange", visible);
@@ -525,15 +554,24 @@ export default function Dashboard() {
                 id="dump"
                 value={text}
                 onChange={(e) => setText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    void saveMemo();
+                  }
+                }}
                 placeholder={
                   "21000원 우산 구매\n오늘은 조금 불안해. 보고서 작성해야 해."
                 }
                 maxLength={10000}
               />
               <div className="capture-footer">
-                <small>명확한 구매는 바로 기록 · 애매한 내용은 확인 대기</small>
+                <small>
+                  쓰는 동안에는 나누지 않아요. Enter는 줄바꿈이고, 완료하면
+                  정리해요.
+                </small>
                 <button disabled={busy || !text.trim()} onClick={saveMemo}>
-                  {busy ? "저장 중…" : "생각 내려놓기"}
+                  {busy ? "저장 중…" : "완료"}
                 </button>
               </div>
             </section>

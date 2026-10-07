@@ -31,6 +31,10 @@ test("한글 금액과 혼합 기록", () => {
   const fs = extractMemo("21000원 우산 구매\n오늘 불안하고 보고서 작성해야 해");
   assert.equal(fs.length, 2);
   assert.deepEqual(fs[1].categories, ["emotion", "work"]);
+  const sentence = extractMemo("배가 고프고 집에 가고 싶어. 콜라 마시고 싶어.");
+  assert.equal(sentence.length, 1);
+  assert.equal(sentence[0].text, "배가 고프고 집에 가고 싶어. 콜라 마시고 싶어.");
+  assert.deepEqual(sentence[0].categories, ["thought"]);
 });
 test("중복 소비 없이 상환 분리 및 취소 제외", () => {
   const t = sumLedger([
