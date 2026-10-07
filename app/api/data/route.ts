@@ -1,3 +1,4 @@
+import "server-only";
 import {
   ApiError,
   authenticatedClient as client,
@@ -11,6 +12,11 @@ export const dynamic = "force-dynamic";
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f-]{36}$/i;
 type Row = Record<string, unknown>;
+const classifyMemoOnServer = (text: string, date: string) =>
+  classifyMemo(text, date, {
+    apiKey: process.env.OPENAI_API_KEY,
+    model: process.env.OPENAI_MODEL || "gpt-5-mini",
+  });
 async function pages<T extends Row>(
   load: (
     offset: number,
@@ -200,7 +206,10 @@ export async function POST(req: Request) {
           fragments: existing.data.fragments,
         });
       }
-      const classification = await classifyMemo(body.text, koreaDate());
+      const classification = await classifyMemoOnServer(
+        body.text,
+        koreaDate(),
+      );
       const fragments = classification.fragments;
       memoFragments = fragments;
       aiMode = classification.aiMode;
@@ -224,7 +233,10 @@ export async function POST(req: Request) {
         .maybeSingle();
       if (existing.error) throw new ApiError("메모를 확인하지 못했습니다.");
       if (!existing.data) throw new ApiError("메모가 없습니다.");
-      const classification = await classifyMemo(body.text, koreaDate());
+      const classification = await classifyMemoOnServer(
+        body.text,
+        koreaDate(),
+      );
       const fragments = fragmentsForRevision(
         existing.data.fragments,
         classification.fragments,

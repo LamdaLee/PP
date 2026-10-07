@@ -45,7 +45,10 @@
 
 ### 4. 🤖 하이브리드 파싱 (한국어 규칙 + OpenAI Structured Outputs)
 * **기본 모드**: 정규식 및 형태소 기반 한국어 금융 규칙 엔진 (오프라인/경량 동작)
-* **AI 모드 (선택적)**: 서버에 `OPENAI_API_KEY` 설정 시 `gpt-5-mini` + Structured Outputs 어댑터가 메모 파편의 문맥을 분석하여 후보 추출
+* **AI 모드 (선택적)**: Vercel Production의 서버 전용 Secret
+  `OPENAI_API_KEY` 설정 시 `gpt-5-mini` + Structured Outputs 어댑터가
+  메모 파편의 문맥을 분석하여 후보 추출. `VITE_`나 `NEXT_PUBLIC_` 접두어를
+  사용하지 않으며, 키는 `/api/data` Route Handler 안에서만 OpenAI로 전달
 * AI 오류나 응답 지연 시 안전하게 규칙 기반 저장으로 자동 Fallback
 
 ### 5. 🔄 실시간 동기화 & 모바일 대응
