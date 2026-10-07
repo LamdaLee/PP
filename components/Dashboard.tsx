@@ -701,7 +701,7 @@ export default function Dashboard() {
             <div className="tabs" role="tablist" aria-label="마음함">
               {(
                 [
-                  ["write", "둔 말"],
+                  ["write", "마음함"],
                   ["pieces", "조각"],
                   ["emotion", "감정"],
                 ] as const
@@ -771,13 +771,13 @@ export default function Dashboard() {
               일상에서 할 일 확인하기 →
             </button>
 
-            <h2 className="section-heading">마음함에 둔 말</h2>
+            <h2 className="section-heading">마음함</h2>
             <label>
               찾기
               <input
                 value={memoQuery}
                 onChange={(e) => setMemoQuery(e.target.value)}
-                placeholder="적어 둔 말"
+                placeholder="마음함에서 찾기"
               />
             </label>
             {data.memosTruncated && (
