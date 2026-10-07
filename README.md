@@ -1,107 +1,90 @@
-# Pause&Ponder — Next.js + Supabase 루틴·Android 업데이트 v0.3.0
+# 🌿 Pause&Ponder (포즈앤폰더)
 
-사용자의 파편적인 생각을 보관하고 돈·감정·일·숨고르기로 연결하는 개인 보조 앱입니다. 현재 우선순위는 충동구매와 금전 기록입니다. 자동 계산은 코드와 PostgreSQL이 수행합니다. OpenAI 키가 없으면 한국어 규칙으로 분류·추출합니다. 키를 설정하면 서버의 선택적 AI 추출도 사용합니다. 사용자는 기존 운영 웹과 AI 동작을 확인했습니다. 이번 루틴·Android 업데이트의 운영 적용과 실기기 검증은 별도입니다.
+> **"생각함에서 시작하는 감정과 돈의 기록"**  
+> 머릿속에 떠오르는 파편화된 생각을 부담 없이 털어놓고, 충동구매를 잠시 멈추며(Pause), 감정과 소비의 연결고리를 되돌아보는(Ponder) 개인 보조 도구입니다.
 
-## 시작
+[![Live Demo](https://img.shields.io/badge/Demo-pauseponder.vercel.app-5A7863?style=for-the-badge&logo=vercel)](https://pauseponder.vercel.app/)
+[![Next.js](https://img.shields.io/badge/Next.js-15+-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
+[![Supabase](https://img.shields.io/badge/Supabase-Database%20%26%20Auth-3ECF8E?style=for-the-badge&logo=supabase)](https://supabase.com/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-Structured%20Outputs-412991?style=for-the-badge&logo=openai)](https://openai.com/)
 
-필수 환경: Node.js 22 이상, 새 Supabase 프로젝트, 배포할 Vercel 계정. 패키지 버전은 package-lock.json을 기준으로 설치합니다.
+---
 
-1. 프로젝트 폴더에서 `npm ci`를 실행합니다.
-2. **새 Supabase 프로젝트**의 SQL Editor에서 `supabase/schema.sql`을 한 번 실행합니다. 기존 프로젝트에 그대로 재실행하거나 기존 테이블을 지우지 마세요. 기존 운영 DB에는 `supabase/migrations/003_routines.sql`만 추가 실행합니다. 새 빈 프로젝트는 base schema 후 해당 마이그레이션을 실행합니다.
-3. `.env.example`을 `.env.local`로 복사합니다. Supabase 프로젝트 URL과 publishable key를 입력합니다. service_role / secret key는 이 프로젝트에 필요하지 않습니다.
-4. `npm run dev` 후 http://localhost:3000 에서 회원가입/로그인합니다. 이메일 인증을 켰다면 먼저 메일을 확인합니다.
-5. `npm test`와 `npm run build`로 검증합니다. 환경변수가 없으면 설정 안내 화면이 표시됩니다.
+## 🎯 기획 배경 및 핵심 철학
 
-## Vercel 배포
+현대인의 충동 소비와 일상의 번아웃은 **복잡하고 규격화된 기록 양식에 대한 피로감**과 **감정의 동요**에서 비롯됩니다. Pause&Ponder는 다음과 같은 원칙으로 설계되었습니다.
 
-프로젝트를 사용자 소유 Git 저장소에 넣고 Vercel에서 Import합니다. Framework는 Next.js, Build는 `npm run build`입니다. 별도 Express 서버나 WebSocket 서버를 운영하지 않습니다. `/api/data`는 Next.js Route Handler로 Vercel에서 실행되고, 실시간 이벤트는 Supabase가 제공합니다.
+1. **먼저 내려놓기 (Zero-Friction Inbox)**:
+   * 분류나 양식을 고민하지 않고 '생각함'에 자유롭게 쏟아냅니다.
+   * 원문은 그대로 보존되며, 문장/줄 단위 파편이 돈·감정·일·숨고르기로 다중 연결됩니다.
+2. **충동구매 방지와 확인 대기 (Pause)**:
+   * `21000원 우산 구매`는 확정 지출로 기록되지만, `21000원 우산 사고 싶다`, `우산 구매 예정?`과 같은 모호한 문장은 **'확인 대기(후보)'** 상태로 분류되어 지출에 즉시 합산되지 않습니다.
+   * 구매 욕구가 일어날 때 차분히 호흡하고 자문할 수 있는 **'숨고르기'** 세션을 제공합니다.
+3. **결정론적 계산 원칙 (Deterministic Calculations)**:
+   * **금액 합산, 수입/지출/환불/상환 분리 계산은 AI에 맡기지 않고 순수 코드와 PostgreSQL 트랜잭션이 엄격히 수행합니다.**
+   * AI는 파편 텍스트의 분류와 후보 추천에만 보조적으로 활용되며, 금융 수치의 환각(Hallucination)을 원천 차단합니다.
 
-Vercel의 환경변수에 아래 두 값을 설정하고 재배포합니다. NEXT_PUBLIC 값은 빌드에 들어가므로 값 변경 뒤 재배포가 필요합니다.
+---
 
-| 변수                                 | 용도                                                       |
-| ------------------------------------ | ---------------------------------------------------------- |
-| NEXT_PUBLIC_SUPABASE_URL             | 동일 데이터베이스 프로젝트의 URL                           |
-| NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY | 공개 가능한 클라이언트 키. 사용자 권한은 인증과 RLS로 제한 |
+## ✨ 핵심 기능
 
-Supabase Auth의 Site URL을 실제 앱 주소로 설정하고 필요한 로컬/운영 Redirect URL을 등록합니다. Email/Password 가입을 허용하고 발신 메일 설정을 확인합니다. Supabase Realtime의 `supabase_realtime` publication에 네 테이블이 포함됐는지 확인합니다. SQL이 이를 추가합니다.
+### 1. 📥 생각함 (Core Inbox)
+* 단일 입력창으로 메모, 할 일, 감정, 소비 욕구를 제약 없이 기록
+* 문장/줄 단위 파편 분할 및 `돈 / 감정 / 일 / 숨고르기` 다중 태그 자동 연결
+* 원문 영구 보존 및 메모 파편 추적성 보장
 
-현재 브라우저 SDK가 세션을 관리하고 API에 Bearer 토큰을 보냅니다. API는 `getUser(token)`으로 검증하고 그 사용자 권한으로 DB 작업을 합니다. SSR 쿠키 로그인 방식은 사용하지 않습니다. 모든 개인 데이터 조회는 로그인 뒤 수행합니다. 클라이언트에서 직접 호출하더라도 RLS가 적용됩니다.
+### 2. 💰 돈 & 가계부 (Finance Engine)
+* **지출 vs 상환 분리**: 카드 물품 구매(`expense`)와 이후 카드 대금 납부(`repayment`)를 엄격히 분리하여 이중 합산 방지
+* **고정 일정 관리**: 월급, 월세, 대출, 카드값 등 주기적 일정을 월별/일회성으로 설정 (31일 말일 자동 보정)
+* **월별 확정 집계**: KST(Asia/Seoul) 기준 수입, 소비, 환불, 상환 분리 집계
+* **멱등성 및 정합성**: 고유 요청 UUID 기반 재시도 처리로 중복 저장 방지
 
-## 주요 동작
+### 3. 🫁 숨고르기 (Breathe & Pause)
+* 충동 소비 충동이 들 때 즉시 실행할 수 있는 부드러운 호흡 애니메이션 가이드
+* "지금 꼭 필요한가?", "이 물건을 사면 어떤 감정이 해소되는가?" 등 구매 전 자기 점검 질문 폼
 
-- 첫 화면은 생각함입니다. 원문을 저장하고 줄 단위 파편을 돈·감정·일·숨고르기·생각에 다중 연결합니다.
-- `21000원 우산 구매`는 메모와 지출을 같은 DB 트랜잭션으로 저장합니다. DB에는 양의 정수 21000 + expense 유형으로 저장하며 화면은 −21,000원으로 표시합니다.
-- `21000원 우산 구매?`, `사고 싶다`, `구매 예정`, 과거 날짜가 포함된 메모는 확인 대기입니다. 날짜·금액·종류를 확인한 뒤 가계부로 보냅니다.
-- 한국어 규칙은 완전한 자연어 이해가 아닙니다. 분류·금액·자동 반영 내역을 검토할 수 있어야 합니다. 잘못된 거래는 취소하고 새 거래를 기록합니다. 원문은 남습니다.
-- 같은 저장 요청 UUID의 재시도와 같은 메모 파편의 중복 반영을 방지합니다. **새 메모로 같은 내용을 두 번 저장하면 별도 거래**입니다. 의미가 같은 텍스트 전체에 대한 중복 탐지는 없습니다.
-- 월별 집계는 Asia/Seoul 날짜로 매월 1일~말일입니다. 시작/종료일도 직접 선택할 수 있습니다.
-- 수입·소비·환불·대금/상환을 분리합니다. 소비 차액은 수입+환불−소비이며 은행 잔액이 아닙니다. 이체는 소비 합계에서 제외합니다.
-- 카드로 물건 구매: expense / credit. 나중 카드 대금 납부: repayment. 둘을 소비에 이중 합산하지 않습니다. 대출 납부도 repayment입니다. 이자는 별도 비용으로 기록해야 합니다.
-- 월급·월세·대출·카드값을 월별/일회 일정으로 설정합니다. 예정은 합계에서 제외합니다. 실제 입금·납부 확인 시 당일로 기록됩니다. 31일 일정은 짧은 달의 말일로 보정합니다.
-- 일정 완료를 취소하면 가계부에서 제외하고 해당 일정은 다시 미확인으로 표시합니다. 이력은 voided_at으로 보존합니다.
-- 감정/업무 화면은 관련 메모를 원문 날짜와 함께 모아 보여줍니다. 전체 메모는 생각함에 있습니다. 숨고르기는 부드러운 호흡 안내와 구매 전 기록 양식입니다.
+### 4. 🤖 하이브리드 파싱 (한국어 규칙 + OpenAI Structured Outputs)
+* **기본 모드**: 정규식 및 형태소 기반 한국어 금융 규칙 엔진 (오프라인/경량 동작)
+* **AI 모드 (선택적)**: 서버에 `OPENAI_API_KEY` 설정 시 `gpt-5-mini` + Structured Outputs 어댑터가 메모 파편의 문맥을 분석하여 후보 추출
+* AI 오류나 응답 지연 시 안전하게 규칙 기반 저장으로 자동 Fallback
 
-## 실시간 동기화
+### 5. 🔄 실시간 동기화 & 모바일 대응
+* Supabase Postgres Changes(Realtime)를 통한 다중 기기 실시간 데이터 반영
+* Row Level Security(RLS)를 통한 완벽한 개인 데이터 격리
+* 모바일, 태블릿, 폴더블(Galaxy Fold 등), 데스크톱 반응형 레이아웃 대응
+* **Android 동반 앱 (v0.3)**: 루틴 추적 및 알림 연동 지원
 
-같은 Supabase 프로젝트 + 같은 앱 Auth 사용자 ID로 로그인한 온라인 기기가 같은 데이터를 봅니다. 저장 → Postgres 변경 이벤트 → 각 기기 API 재조회 흐름입니다. Realtime 재구독, 온라인 복귀, 화면 복귀 시 다시 조회합니다. 저장은 DB가 성공한 뒤 완료 처리합니다.
+---
 
-오프라인 저장/충돌 병합은 아직 없습니다. 연결이 끊기면 저장을 막으며 작성 중 입력은 현재 열린 화면에만 남습니다. 탭을 닫거나 새로고침하면 미저장 초안은 사라질 수 있습니다. 대규모 자료는 아직 페이지네이션이 없습니다(Supabase 기본 조회 한도에 영향). 실시간은 지연·재연결 가능성이 있으며 항상 즉시 동기화를 보장하지 않습니다.
+## 🛠 기술 스택
 
-## UI와 플랫폼
+| 영역 | 기술 스택 | 설명 |
+| :--- | :--- | :--- |
+| **Frontend** | **Next.js 15 (App Router)**, React, TypeScript | 반응형 SPA/웹앱 및 Route Handler API |
+| **Styling** | **Tailwind CSS** | 따뜻한 자연 톤 팔레트 (Sage Green, Butter, Sand) |
+| **Database & Auth** | **Supabase (PostgreSQL, RLS)** | 행 단위 보안 정책, ACID 트랜잭션 RPC, Realtime |
+| **AI Integration** | **OpenAI Responses API** (`gpt-5-mini`) | JSON Schema 기반 Structured Outputs 파싱 보조 |
+| **Mobile** | **Android Native (Kotlin)** | v0.3 일상 루틴 및 기기 동반 앱 |
+| **Deployment** | **Vercel** + **Supabase Cloud** | 서버리스 인프라 배포 |
 
-브라우저 기반 반응형 웹앱입니다. Safari·Chrome·Android 브라우저를 목표로 합니다. Android 네이티브 앱이나 설치형 PWA는 아직 아닙니다. 실제 Galaxy Fold8의 규격을 고정하지 않고 화면의 CSS 너비에 대응합니다.
+---
 
-- 680px 미만: 한 열, 하단 메뉴, 큰 입력창.
-- 680~959px: 넓은/펼친 화면, 요약 카드 두 열, 하단 메뉴.
-- 960px 이상: 좌측 메뉴와 넓은 본문.
-- 배경 #F9F8F5, 세이지 #5A7863, 버터 #F4DF9F, 살구 #F3DACA, 카드 반경 24px.
-- 한글 시스템 글꼴, 버튼 최소 44px, 키보드 포커스, 움직임 줄이기 설정 지원.
+## 📁 주요 디렉터리 및 아키텍처
 
-## 파일 안내
-
-| 파일                     | 역할                                                      |
-| ------------------------ | --------------------------------------------------------- |
-| PRODUCT_SPEC.md          | 제품 목표·UX·단계별 범위·수용 기준                        |
-| HANDOFF.txt              | 다른 계정/AI 도구에 전달할 현재 상태와 다음 작업 프롬프트 |
-| MIGRATION.md             | 개발 계정 이전과 DB/앱 계정 변경 시 데이터 연결 절차      |
-| TEST_REPORT.md           | 수행한 검증과 수행하지 못한 검증                          |
-| supabase/schema.sql      | 테이블·RLS·저장 RPC·Realtime publication                  |
-| app/api/data/route.ts    | 토큰 검증·조회·저장 API                                   |
-| lib/finance.mjs          | 금액 추출·자동 반영 조건·월 집계·예정일 계산              |
-| components/Dashboard.tsx | 로그인·생각함·돈·메모 기록·숨고르기 UI                    |
-| tests/                   | 계산 및 로컬 PostgreSQL 동작 검증                         |
-
-## 다음 개발
-
-제공된 AI 어댑터는 후보 추출과 정리에만 사용하고 합계·날짜·잔액 계산은 일반 코드로 유지합니다. AI 키는 서버 환경변수로만 관리합니다. 모호한 후보는 확인을 거치며 원문과 연결합니다. 업무 체크리스트, 감정 점수/타임라인, 충동구매 보류함, 생활 루틴, 예산 한도, 일정 수정/중단 UI, 비밀번호 재설정, 데이터 내보내기/가져오기, 오프라인 초안, 조회 페이지네이션이 남아 있습니다.
-
-실제 Vercel/Supabase 배포는 완료되지 않았습니다. 기존 정적 데모와 이 새 프로젝트는 별개이며 자동 데이터 이관은 없습니다. 운영 전 두 기기 실시간 확인과 브라우저 검증을 수행하세요.
-
-공식 참고(확인일 2026-10-07):
-
-- https://vercel.com/docs/frameworks/full-stack/nextjs
-- https://supabase.com/docs/guides/realtime/realtime-with-nextjs
-- https://supabase.com/docs/guides/database/postgres/row-level-security
-
-## v0.2.1 변경과 AI 연결
-
-앱 표기를 **Pause&Ponder**로 변경했습니다. 로고는 데스크톱 메뉴 80px, 로그인 96px, 모바일 메뉴 64px로 확대했습니다. 실제 사이트에는 이 소스를 올려 재배포해야 반영됩니다.
-
-OpenAI Responses API + Structured Outputs 어댑터 `lib/ai.mjs`를 추가했습니다. 서버의 `OPENAI_API_KEY`가 비어 있으면 기존 규칙만 사용합니다. 키가 있으면 메모 최대 50개 파편의 분류와 금액/거래 유형 후보를 추가 추출합니다. 기본 모델은 `gpt-5-mini`이며 `OPENAI_MODEL`로 변경할 수 있습니다. Responses와 Structured Outputs를 지원하는 모델이어야 합니다. 기본 모델만 minimal 추론 설정을 적용합니다.
-
-AI는 원문·날짜·규칙으로 확정된 금액/거래 유형을 바꾸지 않습니다. AI로 새로 얻은 금액은 항상 확인 대기입니다. 실패/거절/잘못된 형식/20초 시간 초과는 규칙 기반 저장으로 복귀하고 화면에서 알립니다. 같은 성공 요청 재시도는 DB를 먼저 확인해 AI를 다시 호출하지 않습니다. 동시에 도착하는 요청의 AI 비용 중복을 완전히 방지하는 캐시는 아직 없습니다. 호출은 `store:false`로 요청합니다. 이것이 제공자 측 모든 데이터 보존을 없애는 설정이라는 의미는 아닙니다.
-
-추가 환경변수:
-
-- `OPENAI_API_KEY`: 서버 전용. NEXT_PUBLIC 접두어를 붙이지 않습니다.
-- `OPENAI_MODEL=gpt-5-mini`: 선택 모델. 서버에서만 읽습니다.
-
-AI에 전송되는 자료는 저장하려는 메모 파편(id/본문)입니다. 전체 과거 가계부/감정 기록은 보내지 않습니다. API 사용 비용이 발생합니다. 앱 자체의 사용자별 일일 호출 상한은 아직 없으므로 공개 운영 전에 제한을 추가하고 제공자 프로젝트 사용량을 확인해야 합니다. 제공자 예산 알림과 앱의 강제 호출 제한은 다릅니다.
-
-기존 Supabase 테이블을 변경할 필요가 없는 코드 업데이트입니다. 운영 DB에 schema.sql을 재실행하지 마세요.
-공식 참고: https://developers.openai.com/api/docs/quickstart , https://developers.openai.com/api/docs/guides/structured-outputs , https://developers.openai.com/api/docs/models/gpt-5-mini
+```text
+├── app/
+│   ├── api/data/route.ts       # 토큰 검증, 세션 인가, 메모/거래 CRUD API
+│   ├── layout.tsx              # 전역 레이아웃 및 폰트 설정
+│   └── page.tsx                # 메인 대시보드 진입점
+├── components/
+│   └── Dashboard.tsx           # 생각함, 가계부, 숨고르기, 거래 내역 핵심 UI
+├── lib/
+│   ├── finance.mjs             # 금액 추출, 규칙 기반 분류, 월별 집계, 납부일 계산 엔진
+│   └── ai.mjs                  # OpenAI Structured Outputs 파서 어댑터
+├── supabase/
+│   ├── schema.sql              # 테이블 정의, RLS 보안 규칙, 저장 프로시저(RPC)
+│   └── migrations/             # 마이그레이션 스크립트 (루틴 등)
+└── android/                    # Android 동반 앱 소스 코드
 
 
-## v0.3 루틴·Android 추가
 
-기존 운영 앱 위에 루틴과 Android 동반 앱을 추가했습니다. 운영 DB는 `supabase/migrations/003_routines.sql`만 추가 실행합니다. `schema.sql`을 재실행하지 마세요. 상세 실행·업데이트·알림·동기화 한계는 `ROUTINES_ANDROID_UPDATE.txt`, Android 소스는 `android/`입니다.
