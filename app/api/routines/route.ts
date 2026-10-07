@@ -1,6 +1,14 @@
-import { authenticatedClient, errorResponse, jsonResponse } from "@/lib/server";
+import {
+  authenticatedClient,
+  errorResponse,
+  jsonResponse,
+  optionsResponse,
+} from "@/lib/server";
 import { isoWeekday } from "@/lib/routines.mjs";
 export const dynamic = "force-dynamic";
+export function OPTIONS() {
+  return optionsResponse();
+}
 export async function GET(req: Request) {
   try {
     const db = await authenticatedClient(req);

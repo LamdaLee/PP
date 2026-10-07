@@ -22,8 +22,15 @@ export async function authenticatedClient(req: Request) {
     throw new ApiError("로그인을 다시 확인해 주세요.", 401);
   return db;
 }
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Authorization, Content-Type, apikey",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Cache-Control": "no-store",
+};
 export const jsonResponse = (value: unknown, status = 200) =>
-  Response.json(value, { status, headers: { "Cache-Control": "no-store" } });
+  Response.json(value, { status, headers: corsHeaders });
+export const optionsResponse = () => new Response(null, { status: 204, headers: corsHeaders });
 export function errorResponse(e: unknown) {
   const status = e instanceof ApiError ? e.status : 400;
   const message = e instanceof Error ? e.message : "요청을 처리하지 못했습니다.";
