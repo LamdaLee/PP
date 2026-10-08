@@ -47,6 +47,7 @@ export function Auth({ initialError = "" }: { initialError?: string }) {
         provider: "google",
         options: {
           redirectTo: window.location.origin,
+          scopes: "openid email profile",
           queryParams: { prompt: "select_account" },
           skipBrowserRedirect: true,
         },

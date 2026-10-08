@@ -3,7 +3,7 @@ Pause&Ponder — Google 로그인 운영 연결 안내
 현재 연결 대상
 - 운영 앱: https://pauseponder.vercel.app
 - Supabase 프로젝트: ashbanrhoizqumgtaafk
-- 설정 확인 당시 Google 제공자는 비활성화, 이메일 인증은 활성화 상태.
+- 초기 준비 시 Google 제공자는 비활성화 상태였으며, 이메일 인증은 활성화 상태.
 
 1. Google Auth Platform에서 웹 OAuth 클라이언트 만들기
 https://console.cloud.google.com/auth/clients
