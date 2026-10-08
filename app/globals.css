@@ -658,3 +658,6 @@ fieldset {
 .next-actions form { display: flex; gap: 8px; flex-wrap: wrap; max-width: 100%; }
 .next-actions input, .next-actions select { width: auto; min-width: 0; max-width: 100%; }
 .auth .content-fold { text-align: left; }
+
+.google-login { width: 100%; min-height: 48px; font-weight: 600; }
+.auth-options > .content-fold { margin-bottom: 0; }

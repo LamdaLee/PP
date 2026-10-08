@@ -1,0 +1,58 @@
+Pause&Ponder — Google 로그인 운영 연결 안내
+
+현재 연결 대상
+- 운영 앱: https://pauseponder.vercel.app
+- Supabase 프로젝트: ashbanrhoizqumgtaafk
+- 초기 준비 시 Google 제공자는 비활성화 상태였으며, 이메일 인증은 활성화 상태.
+
+1. Google Auth Platform에서 웹 OAuth 클라이언트 만들기
+https://console.cloud.google.com/auth/clients
+- 유형: Web application
+- Authorized JavaScript origins: https://pauseponder.vercel.app
+- Authorized redirect URIs:
+  https://ashbanrhoizqumgtaafk.supabase.co/auth/v1/callback
+- 기본 로그인 정보만 요청: openid, email, profile.
+- Audience가 Testing이면 테스트 참가자의 Google 계정을 Test users에 추가.
+  일반 사용자에게 공개하려면 Google 콘솔의 게시 상태와 필요한 브랜드 설정을 확인.
+
+2. Supabase Google 제공자 등록
+https://supabase.com/dashboard/project/ashbanrhoizqumgtaafk/auth/providers?provider=Google
+- Google 제공자 활성화.
+- 위 클라이언트의 Client ID / Client Secret 입력 후 저장.
+- Client Secret은 Google/Supabase 콘솔에만 등록. 소스 코드나 NEXT_PUBLIC 환경변수에 넣지 않음.
+
+3. Supabase 로그인 완료 후 복귀 주소
+https://supabase.com/dashboard/project/ashbanrhoizqumgtaafk/auth/url-configuration
+- Site URL: https://pauseponder.vercel.app
+- Redirect URLs: https://pauseponder.vercel.app
+- 개발 확인용 http://127.0.0.1:3100 은 테스트할 때만 허용.
+- Vercel preview를 테스트할 때는 해당 preview origin을 정확히 등록.
+  운영 검증은 운영 origin 사용. 요청에 임의 next URL을 받지 않음.
+
+4. 실제 계정으로 최종 검증
+- 새 Google 사용자: 버튼 → Google 계정 선택/동의 → 마음함.
+  앱의 별도 이메일 확인 메일을 기다리지 않는지 확인.
+- 새로고침·로그아웃·다시 Google 로그인 후 같은 기록 유지.
+- 기존 이메일 계정과 같은 Google 이메일: 동일 사용자/기록으로 연결되는지 확인.
+  Supabase의 identity linking 규칙을 사용하며 앱이 이메일 문자열로 기록을 합치지 않음.
+  기존 계정과 다른 이메일은 다른 계정이므로 기록이 자동으로 옮겨지지 않음.
+- Google 동의 취소: 읽을 수 있는 재시도 안내 표시.
+- 기존 이메일·비밀번호 로그인과 비밀번호 재설정 계속 이용 가능.
+
+화면 동작
+- 공개 /auth/v1/settings 조회로 Google 활성화 여부를 확인.
+- 활성화 전 또는 조회 실패: Google 버튼은 비활성화, 기존 이메일 가입/로그인 제공.
+- 활성화 후: Google을 우선 표시, 이메일·비밀번호 로그인은 접어서 제공,
+  신규 이메일 가입 버튼은 숨김.
+- 이메일 제공자의 Confirm email 설정을 끄는 작업은 필요 없음.
+  Google 인증이 끝난 사용자에게 앱이 추가 확인 메일을 요구하지 않음.
+
+범위
+- 이번 코드는 웹 로그인용. Android 동반 앱의 현재 이메일 로그인은 유지.
+  네이티브 Google 로그인은 Android OAuth 클라이언트와 서명 인증서 설정을 포함한 별도 작업.
+- 이번 변경은 테이블이나 RLS 정책, 사용자별 초안 저장 키를 변경하지 않음.
+- 실제 Google 계정 인증 검증은 클라이언트 등록 후 진행.
+
+참고
+https://supabase.com/docs/guides/auth/social-login/auth-google
+https://supabase.com/docs/guides/auth/auth-identity-linking

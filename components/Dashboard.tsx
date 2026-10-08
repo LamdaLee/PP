@@ -168,11 +168,16 @@ export default function Dashboard() {
       setReady(true);
       return;
     }
+    const callbackQuery = new URLSearchParams(window.location.search);
+    const callbackHash = new URLSearchParams(window.location.hash.slice(1));
+    if (callbackQuery.has("error") || callbackHash.has("error"))
+      setError("로그인이 취소되었거나 완료되지 않았어요. 다시 시도해 주세요.");
     const db = browserClient();
     let alive = true;
     let authEventSeen = false;
-    db.auth.getSession().then(({ data: { session: s } }) => {
+    db.auth.getSession().then(({ data: { session: s }, error: sessionError }) => {
       if (alive && !authEventSeen) {
+        if (sessionError) setError("로그인을 마치지 못했어요. 다시 시도해 주세요.");
         setSession(s);
         currentUser.current = s?.user.id || null;
         setReady(true);
@@ -478,7 +483,7 @@ export default function Dashboard() {
         <h1>복잡한 생각을 적어두고,<br />필요한 것부터 확인하세요.</h1>
         <p>생각·할 일·사고 싶은 것을 한곳에 적어보세요. 필요한 기록으로 나눠드려요.</p>
         <FirstUseExample />
-        <Auth />
+        <Auth initialError={error} />
         <RecordGuide />
       </div>
     );
