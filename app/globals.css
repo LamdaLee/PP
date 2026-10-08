@@ -661,3 +661,32 @@ fieldset {
 
 .google-login { width: 100%; min-height: 48px; font-weight: 600; }
 .auth-options > .content-fold { margin-bottom: 0; }
+
+.legal-footer {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  padding: 24px 20px;
+  background: #f7f6f3;
+  color: #677268;
+  font-size: 12px;
+}
+.legal-footer a {
+  color: inherit;
+  padding: 4px 0;
+  text-decoration: underline;
+  text-decoration-color: #b9c1b7;
+  text-underline-offset: 4px;
+}
+.legal-footer a:hover { color: var(--ink); }
+.legal-footer a:focus-visible {
+  outline: 2px solid var(--sage);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+@media (max-width: 959px) {
+  .shell + .legal-footer {
+    padding-bottom: calc(144px + env(safe-area-inset-bottom, 0px));
+  }
+}
