@@ -10,10 +10,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <body>
         {children}
         <footer className="legal-footer" aria-label="서비스 정책">
-          <a href="https://lamdalee.github.io/inform/privacy.html" target="_blank" rel="noopener noreferrer">
+          <a href="/privacy.html" target="_blank" rel="noopener noreferrer">
             개인정보처리방침
           </a>
-          <a href="https://lamdalee.github.io/inform/terms.html" target="_blank" rel="noopener noreferrer">
+          <a href="/terms.html" target="_blank" rel="noopener noreferrer">
             서비스 이용약관
           </a>
         </footer>
