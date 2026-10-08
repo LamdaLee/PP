@@ -680,6 +680,12 @@ fieldset {
   text-underline-offset: 4px;
 }
 .legal-footer a:hover { color: var(--ink); }
+.legal-copyright {
+  flex-basis: 100%;
+  text-align: center;
+  color: inherit;
+  font-size: inherit;
+}
 .legal-footer a:focus-visible {
   outline: 2px solid var(--sage);
   outline-offset: 4px;
