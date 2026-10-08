@@ -16,6 +16,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <a href="/terms.html" target="_blank" rel="noopener noreferrer">
             서비스 이용약관
           </a>
+          <small className="legal-copyright">
+            © 2026 Lamda Lee. All rights reserved.
+          </small>
         </footer>
       </body>
     </html>
