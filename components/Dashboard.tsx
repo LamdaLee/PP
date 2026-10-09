@@ -11,6 +11,7 @@ import { ScheduleForm } from "./ScheduleForm";
 import { BreatheModal } from "./BreatheModal";
 import { CoolingOffBox, coolingFromRow, type CoolingItem } from "./CoolingOffBox";
 import { browserClient } from "@/lib/supabase";
+import { realtimeSubscription } from "@/lib/realtime-subscription.mjs";
 import {
   koreaDate,
   monthRange,
@@ -216,8 +217,10 @@ export default function Dashboard() {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let retry: ReturnType<typeof setTimeout> | undefined;
-    let channel: ReturnType<ReturnType<typeof browserClient>["channel"]> | null =
-      null;
+    let subscription: ReturnType<typeof realtimeSubscription> | null = null;
+    let connecting = false;
+    let failures = 0;
+    const userId = session.user.id;
     const db = browserClient();
     const update = () =>
       reload()
@@ -230,48 +233,48 @@ export default function Dashboard() {
         .catch((e) => {
           if (!stopped) setSync(e.message);
         });
+    const scheduleRetry = () => {
+      clearTimeout(retry);
+      if (!stopped) retry = setTimeout(listen, Math.min(30000, 2000 * 2 ** Math.min(failures++, 4)));
+    };
     const listen = async () => {
-      if (stopped) return;
-      const {
-        data: { session: live },
-      } = await db.auth.getSession();
-      if (stopped || !live) return;
-      await db.realtime.setAuth(live.access_token);
-      if (channel) db.removeChannel(channel);
-      channel = db.channel(`account-${live.user.id}`);
-      for (const table of [
-        "memos",
-        "entries",
-        "schedules",
-        "settlements",
-        "cooling_off_items",
-      ])
-        channel = channel.on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table,
-            filter: `user_id=eq.${live.user.id}`,
-          },
-          () => {
+      if (stopped || connecting) return;
+      connecting = true;
+      try {
+        if (subscription) await subscription.dispose();
+        if (stopped) return;
+        const current = realtimeSubscription({
+          client: db,
+          userId,
+          name: `account-${userId}`,
+          tables: ["memos", "entries", "schedules", "settlements", "cooling_off_items"],
+          onChange: () => {
             clearTimeout(timer);
             timer = setTimeout(update, 200);
           },
-        );
-      channel.subscribe((status) => {
-        if (stopped) return;
-        if (status === "SUBSCRIBED") {
-          setSync("실시간 연결됨");
-          update();
-        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          setSync("재연결 중");
-          if (channel) db.removeChannel(channel);
-          channel = null;
-          clearTimeout(retry);
-          retry = setTimeout(listen, 2000);
+          onStatus: (status) => {
+            if (stopped || subscription !== current) return;
+            if (status === "SUBSCRIBED") {
+              failures = 0;
+              setSync("실시간 연결됨");
+              update();
+            } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+              setSync("재연결 중");
+              void current.dispose();
+              scheduleRetry();
+            }
+          },
+        });
+        subscription = current;
+        await current.ready;
+      } catch {
+        if (!stopped) {
+          setSync("실시간 연결 확인 중");
+          scheduleRetry();
         }
-      });
+      } finally {
+        connecting = false;
+      }
     };
     void listen();
     const poll = setInterval(() => {
@@ -293,12 +296,12 @@ export default function Dashboard() {
       clearTimeout(timer);
       clearTimeout(retry);
       clearInterval(poll);
-      if (channel) db.removeChannel(channel);
+      if (subscription) void subscription.dispose();
       window.removeEventListener("online", online);
       window.removeEventListener("offline", offline);
       document.removeEventListener("visibilitychange", visible);
     };
-  }, [session, range.start, range.end]);
+  }, [session?.user.id, range.start, range.end]);
 
   function accountSnapshot() {
     return { userId: currentUser.current, generation: accountGeneration.current };
