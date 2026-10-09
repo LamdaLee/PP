@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { browserClient } from "@/lib/supabase";
+import { realtimeSubscription } from "@/lib/realtime-subscription.mjs";
 import { koreaDate } from "@/lib/finance.mjs";
 import { routineOccurrences, dueReminders } from "@/lib/routines.mjs";
 export type Routine = {
@@ -66,21 +67,15 @@ export function useRoutines(userId: string | null) {
       });
     reload();
     const db = browserClient();
-    let ch = db.channel(`routines-${userId}`);
-    for (const table of ["routines", "routine_logs"])
-      ch = ch.on(
-        "postgres_changes",
-        { event: "*", schema: "public", table, filter: `user_id=eq.${userId}` },
-        reload,
-      );
-    void db.auth.getSession().then(async ({ data: { session } }) => {
-      if (!active) return;
-      if (session?.access_token) await db.realtime.setAuth(session.access_token);
-      if (!active) return;
-      ch.subscribe((status) => {
-        if (status === "SUBSCRIBED") reload();
-      });
+    const subscription = realtimeSubscription({
+      client: db,
+      userId,
+      name: `routines-${userId}`,
+      tables: ["routines", "routine_logs"],
+      onChange: reload,
+      onStatus: (status) => { if (status === "SUBSCRIBED") reload(); },
     });
+    void subscription.ready.catch((e) => { if (active) setError(e.message); });
     const timer = setInterval(() => setNow(new Date()), 30000);
     const visible = () => {
       if (document.visibilityState === "visible") reload();
@@ -91,7 +86,7 @@ export function useRoutines(userId: string | null) {
       active = false;
       sequence.current++;
       clearInterval(timer);
-      browserClient().removeChannel(ch);
+      void subscription.dispose();
       window.removeEventListener("online", reload);
       document.removeEventListener("visibilitychange", visible);
     };
