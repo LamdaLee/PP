@@ -17,7 +17,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             서비스 이용약관
           </a>
           <small className="legal-copyright">
-            © 2026 Lamda Lee. All rights reserved.
+            © 2026 Shaula. All rights reserved.
           </small>
         </footer>
       </body>
