@@ -3,7 +3,7 @@
 > **"생각함에서 시작하는 감정과 돈의 기록"**  
 > 머릿속에 떠오르는 파편화된 생각을 부담 없이 털어놓고, 충동구매를 잠시 멈추며(Pause), 감정과 소비의 연결고리를 되돌아보는(Ponder) 개인 보조 도구입니다.
 
-[![Live Demo](https://img.shields.io/badge/Demo-pauseponder.vercel.app-5A7863?style=for-the-badge&logo=vercel)](https://pauseponder.vercel.app/)
+[![Live Demo](https://img.shields.io/badge/Demo-getpauseponder.com-5A7863?style=for-the-badge&logo=vercel)](https://getpauseponder.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-15+-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
 [![Supabase](https://img.shields.io/badge/Supabase-Database%20%26%20Auth-3ECF8E?style=for-the-badge&logo=supabase)](https://supabase.com/)
 [![OpenAI](https://img.shields.io/badge/OpenAI-Structured%20Outputs-412991?style=for-the-badge&logo=openai)](https://openai.com/)
