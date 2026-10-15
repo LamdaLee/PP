@@ -12,7 +12,7 @@ Open this folder in Android Studio, install SDK 35 and JDK 17, then run:
 ./gradlew testDebugUnitTest assembleDebug
 ```
 
-APK: `app/build/outputs/apk/debug/app-debug.apk`. Default server: `https://pouseponder.vercel.app`. Override with `-PappUrl=https://your-host`. Do not include credentials in this argument. This is a personal test build; Play signing/distribution is not configured.
+APK: `app/build/outputs/apk/debug/app-debug.apk`. Default server: `https://pauseponder.vercel.app`. Override with `-PappUrl=https://your-host`. Do not include credentials in this argument. This is a personal test build; Play signing/distribution is not configured.
 
 - MainActivity: login, current routines, actions, sync, permission settings, conflict review and same-account reauthentication.
 - CaptureActivity: short input window opened by memo widget; encrypted draft/outbox; retry with stable UUID.

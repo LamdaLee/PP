@@ -26,7 +26,7 @@ Pause&Ponder v0.3 — 루틴·알림·Android 위젯 업데이트
 
 4. Android 앱
    앱은 Android 8 이상. 같은 Supabase 이메일·비밀번호로 로그인합니다. Google OAuth/매직링크 로그인은 이번 네이티브 버전에 없습니다.
-   Android Studio에서 ZIP의 android 폴더를 프로젝트로 열고 SDK 35/JDK 17로 빌드합니다. 기본 서버 주소는 https://pouseponder.vercel.app 입니다.
+   Android Studio에서 ZIP의 android 폴더를 프로젝트로 열고 SDK 35/JDK 17로 빌드합니다. 기본 서버 주소는 https://pauseponder.vercel.app 입니다.
    터미널: cd android && ./gradlew testDebugUnitTest assembleDebug
    다른 주소를 사용하면 ./gradlew -PappUrl=https://새주소 testDebugUnitTest assembleDebug
    APK 위치 app/build/outputs/apk/debug/app-debug.apk. 개인 테스트용 debug 빌드입니다. Play Store 제출용 서명/배포 설정은 별도입니다.
